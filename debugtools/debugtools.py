@@ -130,7 +130,12 @@ def exit_with_msg(sign):
         exit(sign)
 
 
+def go_script_dir():
+    os.chdir(os.path.dirname(os.path.realpath(__file__)))
+
+
 def get_version():
+    go_script_dir()
     key = "version"
     for i in open(CONFIG_PATH).readlines():
         if i.startswith(key):
@@ -139,7 +144,7 @@ def get_version():
 
 
 def update():
-    os.chdir(os.path.dirname(os.path.realpath(__file__)))
+    go_script_dir()
     if 0 != os.system("git pull --rebase"):
         print "Can't update!"
 
