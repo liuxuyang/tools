@@ -213,7 +213,7 @@ def main():
             build_apk()
         install_apk(install_debug)
         restart_app()
-        turn_on_screen()
+        #turn_on_screen()
         exit_with_msg(0)
 
 
