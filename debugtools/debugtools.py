@@ -139,6 +139,7 @@ def get_version():
 
 
 def update():
+    os.chdir(os.path.dirname(os.path.realpath(__file__)))
     if 0 != os.system("git pull --rebase"):
         print "Can't update!"
 
