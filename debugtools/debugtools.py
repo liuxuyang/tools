@@ -1,28 +1,32 @@
 import os
 import sys
+import re
+import subprocess
 
 CONFIG_PATH = "config"
 GRADLE_PATH = os.environ['HOME'] + '/.gradle/wrapper/dists/'
 APK_BUILD_PATH = "app/build/outputs/apk/"
 APK_PUSH_PATH = "/system/priv-app/"
 APP_NAME = "ApeCamera"
-APP_NAME_BRANCH_CODE = "50"
 
 INVALID_SIGN_MSG = "Internal error : invalid sign"
 EXIT_MSG = [
-    "Normal",  # 0
-    "Devices need root",  # 1
-    "Devices need remount",  # 2
-    "Build fail",  # 3
-    "Apk install fail",  # 4
-    "Path error,please run this script on project root path",  # 5
-    "",  # 6
-    "",  # 7
-    "Args invalid",  # 8
+    "Normal",                                                   # 0
+    "Devices need root",                                        # 1
+    "Devices need remount",                                     # 2
+    "Build fail",                                               # 3
+    "Apk install fail",                                         # 4
+    "Path error,please run this script on project root path",   # 5
+    "App restart fail",                                         # 6
+    "App restart fail",                                         # 7
+    "Args invalid",                                             # 8
 ]
 
-IS_DEBUG = True
+IS_DEBUG = False
+config = None
 
+def init_config():
+    pass
 
 def log(msg):
     if IS_DEBUG:
@@ -39,14 +43,48 @@ def remount_devices():
         exit_with_msg(2)
 
 
+def clear_old_apk():
+    os.system("rm " + APK_BUILD_PATH + "*.apk")
+
+
 def build_apk():
     if 0 != os.system(find_gradle_path() + " build"):
         exit_with_msg(3)
 
 
-def install_apk():
-    apk_path = 'app/build/outputs/apk/ApeCamera50-debug.apk'
-    push_path = '/system/priv-app/ApeCamera45/ApeCamera45.apk'
+def find_install_path():
+    cmd = "adb shell ls /system/priv-app/"
+    result = os.popen(cmd).read()
+    for l in result.splitlines():
+        if APP_NAME in l:
+            return l
+
+
+def install_apk(is_debug):
+    debug_apk_name = ""
+    release_apk_name = ""
+    apks = []
+    for root, dirs, files in os.walk(APK_BUILD_PATH):
+        for fn in files:
+            if APP_NAME in fn:
+                apks.append(fn)
+
+    for name in apks:
+        if "-debug.apk" in name:
+            debug_apk_name = name
+        else:
+            release_apk_name = name
+
+    if is_debug:
+        apk_name = debug_apk_name
+    else:
+        apk_name = release_apk_name
+
+    apk_path = os.path.join(APK_BUILD_PATH, apk_name)
+
+    install_file_path = find_install_path()
+    install_file_name = find_install_path() + '.apk'
+    push_path = os.path.join(APK_PUSH_PATH, install_file_path, install_file_name, )
     cmd = 'adb push ' + apk_path + " " + push_path
     if 0 != os.system(cmd):
         exit_with_msg(4)
@@ -93,10 +131,10 @@ def exit_with_msg(sign):
 
 
 def get_version():
-    key = "version:"
+    key = "version"
     for i in open(CONFIG_PATH).readlines():
         if i.startswith(key):
-            return i[len(key):]
+            return i.split(":")[-1].strip(" ").lstrip("\"").rstrip("\"")
     return "Can't find version code."
 
 
@@ -105,17 +143,42 @@ def update():
         print "Can't update!"
 
 
+def turn_on_screen():
+    screen_id = ''
+    for s in sys.argv[1:]:
+        if s[:7] == 'screen=' and len(s) > 7:
+            screen_id = s[7:]
+
+    if not screen_id:
+        print 'Error: need to specify screen serial'
+        assert False
+
+    cmd = ('adb -s %s shell dumpsys power | egrep "Display Power"'
+           % screen_id)
+    process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE)
+    cmd_ret = process.stdout.read()
+    screen_state = re.split(r'[s|=]', cmd_ret)[-1]
+    if screen_state == 'OFF\n':
+        wakeup = ('adb -s %s shell input keyevent POWER' % screen_id)
+        subprocess.Popen(wakeup.split())
+
+
 def main():
     """
     This program provide build & install Tinno ApeCamera features.
     Options include:
-    --version : Prints the version number
-    --help    : Display this help
-    --update  : Update this program
+    --version   : Prints the version number
+    --help      : Display this help
+    --update    : Update this program
+
+    -i          : just install app, do not rebuild
+    -d:         : install debug app
     """
     log(sys.argv)
 
     run = True
+    just_install = False
+    install_debug = False
 
     for argv in sys.argv[1:]:
         if argv.startswith("--"):
@@ -132,17 +195,30 @@ def main():
             exit_with_msg(0)
 
         elif argv.startswith("-"):
-            pass
+            option = argv[1:]
+            if "d" in option:
+                install_debug = True
+            elif "i" in option:
+                just_install = True
+
         else:
             exit_with_msg(8)
 
     if run:
+        init_config()
         root_devices()
         remount_devices()
-        build_apk()
-        install_apk()
+        if not just_install:
+            clear_old_apk()
+            build_apk()
+        install_apk(install_debug)
         restart_app()
+        turn_on_screen()
         exit_with_msg(0)
+
+
+def test():
+    init_config()
 
 
 if __name__ == '__main__':
