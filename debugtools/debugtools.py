@@ -22,7 +22,7 @@ EXIT_MSG = [
     "Args invalid",                                             # 8
 ]
 
-IS_DEBUG = False
+IS_DEBUG = True
 config = None
 
 def init_config():
@@ -44,7 +44,7 @@ def remount_devices():
 
 
 def clear_old_apk():
-    os.system("rm " + APK_BUILD_PATH + "*.apk")
+    os.system("rm -rf " + APK_BUILD_PATH)
 
 
 def build_apk():
@@ -61,31 +61,29 @@ def find_install_path():
 
 
 def install_apk(is_debug):
-    debug_apk_name = ""
-    release_apk_name = ""
+    debug_file = ""
+    release_file = ""
     apks = []
     for root, dirs, files in os.walk(APK_BUILD_PATH):
         for fn in files:
             if APP_NAME in fn:
-                apks.append(fn)
+                apks.append(os.path.join(root, fn))
 
     for name in apks:
         if "-debug.apk" in name:
-            debug_apk_name = name
+            debug_file = name
         else:
-            release_apk_name = name
+            release_file = name
 
     if is_debug:
-        apk_name = debug_apk_name
+        install_apk_path = debug_file
     else:
-        apk_name = release_apk_name
-
-    apk_path = os.path.join(APK_BUILD_PATH, apk_name)
+        install_apk_path = release_file
 
     install_file_path = find_install_path()
     install_file_name = find_install_path() + '.apk'
     push_path = os.path.join(APK_PUSH_PATH, install_file_path, install_file_name, )
-    cmd = 'adb push ' + apk_path + " " + push_path
+    cmd = 'adb push ' + install_apk_path + " " + push_path
     if 0 != os.system(cmd):
         exit_with_msg(4)
 
@@ -145,7 +143,7 @@ def get_version():
 
 def update():
     go_script_dir()
-    if 0 != os.system("git pull --rebase"):
+    if 0 != os.system("git reset --hard HEAD && git pull --rebase"):
         print "Can't update!"
 
 
@@ -204,7 +202,7 @@ def main():
             option = argv[1:]
             if "d" in option:
                 install_debug = True
-            elif "i" in option:
+            if "i" in option:
                 just_install = True
 
         else:
@@ -224,7 +222,7 @@ def main():
 
 
 def test():
-    init_config()
+    clear_old_apk()
 
 
 if __name__ == '__main__':
