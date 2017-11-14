@@ -29,21 +29,14 @@ class Excel:
         title = kwargs["title"] if kwargs["title"] is not None else Excel.DEFAULT_SHEET_NAME
         if data is None or not isinstance(data, dict):
             return
-        log(data)
         self.ws = self.wb.create_sheet(title, 0)  # create sheet
-        # row_title = [Config.get_title("hal_log")]
-        # for i in xrange(len(row_title)):  # write header
-        #     for j in xrange(len(row_title[i])):
-        #         self.ws.cell(row=i + 1, column=j + 1, value=row_title[i][j])
-
-        # header_columns = len(row_title)  # get header row count
         for i in xrange(len(data.keys())):
             title = Config.get_title("hal_log", data.keys()[i])
-            log(title)
             self.ws.cell(row=1, column=i + 1, value=title)  # write header
             key = data.keys()[i]
             column_data = data.get(key)
             for j in xrange(len(column_data)):
                 value = column_data[j]
                 self.ws.cell(row=j + 1 + 1, column=i + 1, value=value)  # write data
+        print("output in %s" % os.path.abspath(self.save_path))
         self.wb.save(self.save_path)
