@@ -1,7 +1,13 @@
-from util import log
+import time
+
+import os
+
+from data.app_log import app_log_test
+from tool.devices import Device
+from tool.util import log
 import sys
 from data.log_interpreter import LogInterpreter
-from target import Excel
+from tool.target import Excel
 
 __version__ = "1.0.0"
 
@@ -13,7 +19,8 @@ def main():
         -v,--version   : Prints the program version info.
         -h,--help      : Display this help
         --update    : Update this program
-        -a,--analyze <log_path> [<result_path>] : analyze the specified log and save the result.
+        -a,--analyze <log_path> [<result_path>] : Analyze the specified log and save the result.
+        -t,--test [<number>] [<result_path>]: Auto test a specified number of times.
     """
     if len(sys.argv) <= 1:
         exit_with_msg(1)
@@ -25,14 +32,14 @@ def main():
             output_version()
         elif option == "--update":
             update()
-        elif option in ["-a", "analyze"]:
-            log_path = None
+        elif option in ["-t", "--test"]:
+            test_number = None
             save_path = None
             if len(sys.argv) >= 4:
                 save_path = sys.argv[3]
             if len(sys.argv) >= 3:
-                log_path = sys.argv[2]
-            analyze(log_path, save_path)
+                test_number = sys.argv[2]
+            auto_test(test_number, save_path)
         else:
             print("Invalid arguments")
     else:
@@ -63,25 +70,51 @@ def get_exit_msg(index):
     pass
 
 
-def analyze(log_path, save_path):
-    try:
-        if log_path:
-            log_data = LogInterpreter()
-            log_data.read_log(log_path)
-            log_data.analysis_hal_log()
+def test():
+    app_log_test()
 
-            xlsx = Excel()
-            if save_path:
-                xlsx.open(save_path)
-            else:
-                xlsx.open()
-            xlsx.write_data(data=log_data.get_result(), title="test")
-            xlsx.close()
-        else:
-            log("log path is invalid!")
-    except Exception(), e:
-        log(e)
+
+def auto_test(number, save_path):
+    # device = Device()
+    # app_log, hal_log = device.auto_test(number)
+    # log(app_log)
+    # log(hal_log)
+    # interpreter = LogInterpreter(device)
+    # interpreter.read_log(app_log)
+    # interpreter.read_log(hal_log)
+    # interpreter.analysis_hal_log()
+    # interpreter.analysis_app_log()
+    #
+    # xlsx = Excel()
+    # if save_path:
+    #     xlsx.open(save_path)
+    # else:
+    #     xlsx.open()
+    # cur_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
+    # xlsx.write_data(data=interpreter.get_result(), title=cur_time, device=device)
+    # xlsx.close()
+
+    device_msg = '{"platform":"qcom","system_version":"UFEEL-Daily_V01.15_2.ORG.10-[Oreo-8.0]-C800AE",' \
+                 '"sdk_version":"26","app_version":"8.0.50.05","app_pid":"9328","hal_pid":"494"} '
+    device = Device()
+    device.decode(device_msg)
+    app_log = "/home/liuxuyang/.KpiLog/app_log_2017_12_01_18_20_38.log"
+    hal_log = "/home/liuxuyang/.KpiLog/hal_log_2017_12_01_18_20_38.log"
+    interpreter = LogInterpreter(device)
+    interpreter.read_log(app_log)
+    interpreter.read_log(hal_log)
+    interpreter.analysis_app_log()
+    interpreter.analysis_hal_log()
+    xlsx = Excel()
+    if save_path:
+        xlsx.open(save_path)
+    else:
+        xlsx.open()
+    cur_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
+    xlsx.write_data(data=interpreter.get_result(), title=cur_time, device=device)
+    xlsx.close()
 
 
 if __name__ == "__main__":
     main()
+    #test()

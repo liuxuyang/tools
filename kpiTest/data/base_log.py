@@ -1,6 +1,6 @@
 import re
 
-from util import date_to_time
+from tool.util import date_to_time
 
 
 class BaseLogBean:
@@ -17,8 +17,8 @@ class BaseLogBean:
     def __init__(self, line):
         self.date = BaseLogBean.split_pattern.split(line)[0]
         self.time = BaseLogBean.split_pattern.split(line)[1]
-        self.pid = BaseLogBean.split_pattern.split(line)[2]
-        self.tid = BaseLogBean.split_pattern.split(line)[3]
+        self.pid = int(BaseLogBean.split_pattern.split(line)[2])
+        self.tid = int(BaseLogBean.split_pattern.split(line)[3])
         self.level = BaseLogBean.split_pattern.split(line)[4]
         self.tag = BaseLogBean.split_pattern.split(line)[5]
 
@@ -29,14 +29,8 @@ class BaseLogBean:
             self.msg = None
 
     def __str__(self):
-        result = "Base :\n" + "date [" + self.date + "]\n" \
-                 + "time [" + self.time + "]\n" \
-                 + "time_stamp [" + str(self.get_time_stamp()) + "]\n" \
-                 + "pid [" + self.pid + "]\n" \
-                 + "tid [" + self.tid + "]\n" \
-                 + "level [" + self.level + "]\n" \
-                 + "tag [" + self.tag + "]\n" \
-                 + "msg [" + self.msg + "]\n"
+        result = "Base :\ndate [%s]\ntime [%s]\ntime_stamp [%s]\npid [%s]\ntid [%s]\nlevel [%s]\ntag [%s]\nmsg [%s]\n" % (
+            self.date, self.time, self.get_time_stamp(), self.pid, self.tid, self.level, self.tag, self.msg)
         return result
 
     def __sub__(self, other):

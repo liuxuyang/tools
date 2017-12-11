@@ -1,6 +1,6 @@
 import re
 
-from config import Config
+from tool.config import Config
 from data.base_log import BaseLogBean
 
 METHOD_FLAG_ENTER = "E"  # E

@@ -10,7 +10,7 @@ function print_err(){
     exit
 }
 
-for M in openpyxl
+for M in openpyxl matplotlib
 do
     python -c "import $M" >/dev/null 2>&1 || print_err ${M}
 
@@ -18,4 +18,5 @@ done
 
 cur_path=$(cd `dirname $0`;pwd)
 export PYTHONPATH="${cur_path}/data:$PYTHONPATH"
+export PYTHONPATH="${cur_path}/tool:$PYTHONPATH"
 python ${cur_path}'/kpi_test.py' $*

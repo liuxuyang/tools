@@ -1,4 +1,7 @@
 {
+  "pkg_name":"com.myos.camera",
+  "min_app_version":"",
+  "min_hal_version":"",
   "debug": true,
   "save_path": "test.xlsx",
   "hal_log": [
@@ -45,6 +48,42 @@
       "end_flag": ""
     }
   ],
-  "app_log": {
-  }
+  "app_log": [
+    {
+      "tag": "PROFILE_OPEN_CAMERA_COLD",
+      "title": "open(cold)"
+    },
+    {
+      "tag": "PROFILE_OPEN_CAMERA_WARM",
+      "title": "open(warm)"
+    },
+    {
+      "tag": "PROFILE_START_PREVIEW",
+      "title": "start_preview"
+    },
+    {
+      "tag": "PROFILE_AUTO_FOCUS",
+      "title": "auto_focus"
+    },
+    {
+      "tag": "PROFILE_TAKE_PICTURE",
+      "title": "capture"
+    },
+    {
+      "tag": "PROFILE_STORAGE_PICTURE",
+      "title": "storage"
+    },
+    {
+      "tag": "PROFILE_SWITCH_CAMERA_ID",
+      "title": "switch_id"
+    },
+    {
+      "tag": "PROFILE_SWITCH_PHOTO_TO_VIDEO",
+      "title": "switch_mode(p2v)"
+    },
+    {
+      "tag": "PROFILE_SWITCH_VIDEO_TO_PHOTO",
+      "title": "switch_mode(v2p)"
+    }
+  ]
 }

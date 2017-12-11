@@ -5,7 +5,7 @@ class Config:
     def __init__(self):
         pass
 
-    CONFIG_PATH = "config.json"
+    CONFIG_PATH = "./config.json"
     config = None
 
     @staticmethod
@@ -33,6 +33,18 @@ class Config:
         return Config.get_value("debug")
 
     @staticmethod
+    def get_pkg_name():
+        return Config.get_value("pkg_name")
+
+    @staticmethod
+    def get_min_app_version():
+        return Config.get_value("min_app_version")
+
+    @staticmethod
+    def get_min_hal_version():
+        return Config.get_value("min_hal_version")
+
+    @staticmethod
     def find_end_tag(start_tag):
         # hal
         hal_log_rules = Config.get_value("hal_log")
@@ -45,10 +57,12 @@ class Config:
 
     @staticmethod
     def get_title(log_type, tag):
-        hal_log_rules = Config.get_value(log_type)
+        print("%s %s" %(log_type,tag))
+        log_rules = Config.get_value(log_type)
         if tag is not None:
-            for rule in hal_log_rules:
+            for rule in log_rules:
                 if rule["tag"] == tag:
+                    print(rule["title"])
                     return rule["title"]
         else:
             return "unknown"
