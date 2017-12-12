@@ -57,7 +57,7 @@ class Config:
 
     @staticmethod
     def get_title(log_type, tag):
-        print("%s %s" %(log_type,tag))
+        print("get_title %s %s" %(log_type,tag))
         log_rules = Config.get_value(log_type)
         if tag is not None:
             for rule in log_rules:

@@ -14,12 +14,11 @@ class Excel:
         self.save_path = None
 
     def open(self, path=DEFAULT_SAVE_PATH):
-        if path and check_file_exist(path):
+        if check_file_exist(path):
             self.wb = load_workbook(path)
-            self.save_path = path
         else:
             self.wb = Workbook()
-            self.save_path = Excel.DEFAULT_SAVE_PATH
+        self.save_path = path
 
     def close(self):
         self.wb.close()
@@ -43,26 +42,59 @@ class Excel:
         app_start_row = 3 if device else 1
         app_start_column = 1
         self.ws.cell(row=app_start_row, column=app_start_column, value="app")
-        self.__write_item(app_data, "app_log", app_start_row + 1, app_start_column)  # write app data
+        end_column = self.__write_item(app_data, "app_log", app_start_row + 1, app_start_column)  # write app data
 
         # write hal
         hal_data = data["hal"]
         hal_start_row = 3 if device else 1
-        hal_start_column = 1 + len(app_data.keys())
+        hal_start_column = app_start_column + end_column
         self.ws.cell(row=app_start_row, column=hal_start_column, value="hal")
         self.__write_item(hal_data, "hal_log", hal_start_row + 1, hal_start_column)  # write hal data
 
         print("output in %s" % os.path.abspath(self.save_path))
-        self.wb.save(self.save_path)
+        end_column = self.wb.save(self.save_path)
 
     def __write_item(self, data, data_type, start_row, start_column):
+        type_title_row = start_row
+        type_title_column = start_column
+
+        data_row = start_row + 2
+
         for i in xrange(len(data.keys())):
-            title = Config.get_title(data_type, data.keys()[i])
-            self.ws.cell(row=start_row, column=start_column + i, value=title)  # write header
             key = data.keys()[i]
-            column_data = data.get(key)
-            for j in xrange(len(column_data)):
-                row = start_row + 1 + j
-                column = start_column + i
-                value = column_data[j]
-                self.ws.cell(row=row, column=column, value=value)  # write data
+
+            type_title = Config.get_title(data_type, key)
+            self.ws.cell(row=type_title_row, column=type_title_column, value=type_title)  # write header
+
+            item = data.get(key)
+            if isinstance(item, dict):
+                mode_titles = item.keys()
+
+                mode_title_row = start_row + 1
+                mode_title_column = type_title_column
+
+                for mode in mode_titles:
+                    self.ws.cell(row=mode_title_row, column=mode_title_column, value=mode)  # write header
+
+                    time_data = item.get(mode)
+                    if isinstance(time_data, list):
+                        for j in xrange(len(time_data)):
+                            row = data_row + j
+                            column = mode_title_column
+                            value = time_data[j]
+                            self.ws.cell(row=row, column=column, value=value)  # write data
+                    else:
+                        log(" __write_item error, mode : %s" % mode)
+                    mode_title_column = mode_title_column + 1
+
+                type_title_column = type_title_column + len(mode_titles)
+            elif isinstance(item, list):
+                for j in xrange(len(item)):
+                    row = data_row + j
+                    column = type_title_column
+                    value = item[j]
+                    self.ws.cell(row=row, column=column, value=value)  # write data
+                type_title_column = type_title_column + 1
+            else:
+                log(" __write_item error, key : %s" % key)
+        return type_title_column

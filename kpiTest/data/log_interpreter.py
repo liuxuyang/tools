@@ -72,7 +72,11 @@ class LogInterpreter:
         log("start analysis app log , log len : %s" % len(self.__app_log))
         for app_log in self.__app_log:
             if app_log.is_valid(self.get_app_pid()):
-                self.__add_app_to_result(app_log.get_type(), app_log.get_duration())
+                if app_log.has_mode_info():
+                    self.__add__app_to_result_with_mode(app_log.get_type(), app_log.get_mode_type(),
+                                                        app_log.get_duration())
+                else:
+                    self.__add_app_to_result(app_log.get_type(), app_log.get_duration())
         log("end analysis app log , result data len : %s" % len(self.__result_data["app"]))
 
     def __analysis_mtk_hal_log(self):
@@ -106,7 +110,7 @@ class LogInterpreter:
         for bean in logs:
             if bean.is_method_end() and end_tag == bean.get_type():
                 return bean
-        log("loss end!!!")
+        log("%s loss end tag!!!" % start_bean.get_type())
         return None
 
     def __add_hal_to_result(self, start, end):
@@ -123,6 +127,16 @@ class LogInterpreter:
             self.__result_data["app"][msg_type].append(duration)
         else:
             self.__result_data["app"][msg_type] = list([duration])
+
+    def __add__app_to_result_with_mode(self, msg_type, mode, duration):
+        if msg_type in self.__result_data["app"]:
+            if mode in self.__result_data["app"][msg_type].keys():
+                self.__result_data["app"][msg_type][mode].append(duration)
+                log("add to result with mode : %s and duration : %s" % (mode,duration))
+            else:
+                self.__result_data["app"][msg_type][mode] = list([duration])
+        else:
+            self.__result_data["app"][msg_type] = dict()
 
     def __get_index(self, log_list, tag):
         for i in xrange(len(log_list)):

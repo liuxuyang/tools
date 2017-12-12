@@ -9,7 +9,7 @@ import sys
 from data.log_interpreter import LogInterpreter
 from tool.target import Excel
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 
 def main():
@@ -75,6 +75,7 @@ def test():
 
 
 def auto_test(number, save_path):
+    log("auto test %s and save to %s" % (number, save_path))
     # device = Device()
     # app_log, hal_log = device.auto_test(number)
     # log(app_log)
@@ -94,12 +95,12 @@ def auto_test(number, save_path):
     # xlsx.write_data(data=interpreter.get_result(), title=cur_time, device=device)
     # xlsx.close()
 
-    device_msg = '{"platform":"qcom","system_version":"UFEEL-Daily_V01.15_2.ORG.10-[Oreo-8.0]-C800AE",' \
-                 '"sdk_version":"26","app_version":"8.0.50.05","app_pid":"9328","hal_pid":"494"} '
+    device_msg = '{"platform":"qcom","system_version":"UFEEL-Daily_V01.20_2.ORG.10-[Oreo-8.0]-C800AE",' \
+                 '"sdk_version":"26","app_version":"8.0.50.07","app_pid":"23146","hal_pid":"503"} '
     device = Device()
     device.decode(device_msg)
-    app_log = "/home/liuxuyang/.KpiLog/app_log_2017_12_01_18_20_38.log"
-    hal_log = "/home/liuxuyang/.KpiLog/hal_log_2017_12_01_18_20_38.log"
+    app_log = "/home/liuxuyang/.KpiLog/app_log_2017_12_11_18_02_01.log"
+    hal_log = "/home/liuxuyang/.KpiLog/hal_log_2017_12_11_18_02_01.log"
     interpreter = LogInterpreter(device)
     interpreter.read_log(app_log)
     interpreter.read_log(hal_log)
