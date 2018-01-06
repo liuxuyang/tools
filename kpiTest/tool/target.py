@@ -1,7 +1,7 @@
 from openpyxl import *
 
 from config import Config
-from util import check_file_exist, log
+from util import check_file_exist, log, check_duration
 
 
 class Excel:
@@ -63,7 +63,7 @@ class Excel:
         for i in xrange(len(data.keys())):
             key = data.keys()[i]
 
-            type_title = Config.get_title(data_type, key)
+            type_title = Config.get_title(key, data_type)
             self.ws.cell(row=type_title_row, column=type_title_column, value=type_title)  # write header
 
             item = data.get(key)
@@ -82,7 +82,7 @@ class Excel:
                             row = data_row + j
                             column = mode_title_column
                             value = time_data[j]
-                            self.ws.cell(row=row, column=column, value=value)  # write data
+                            self.ws.cell(row=row, column=column, value=check_duration(value))  # write data
                     else:
                         log(" __write_item error, mode : %s" % mode)
                     mode_title_column = mode_title_column + 1
@@ -93,7 +93,7 @@ class Excel:
                     row = data_row + j
                     column = type_title_column
                     value = item[j]
-                    self.ws.cell(row=row, column=column, value=value)  # write data
+                    self.ws.cell(row=row, column=column, value=check_duration(value))  # write data
                 type_title_column = type_title_column + 1
             else:
                 log(" __write_item error, key : %s" % key)

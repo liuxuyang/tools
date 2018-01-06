@@ -1,26 +1,40 @@
 import time
 
-import os
-
-from data.app_log import app_log_test
 from tool.devices import Device
-from tool.util import log
+from tool.util import log, generate_result_file_path
 import sys
 from data.log_interpreter import LogInterpreter
 from tool.target import Excel
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 
 def main():
     """
         These are common kpi_test commands used in various situations.
+
+        log will cache in [home_path]/Kpi/log/
+        result will cache in [home_path]/Kpi/result/
+
         Options include:
+
         -v,--version   : Prints the program version info.
+
         -h,--help      : Display this help
+
         --update    : Update this program
-        -a,--analyze <log_path> [<result_path>] : Analyze the specified log and save the result.
-        -t,--test [<number>] [<result_path>]: Auto test a specified number of times.
+
+        -a,--analyze <log_path> <TYPE> [<result_path>] : Analyze the specified log and save the result.
+            TYPE:
+                app : this is a app log
+                hal : this is a hal log
+
+        -t,--test <OPTION> [<number>] [<result_path>]: Auto test a specified number of times.
+            OPTION:
+                c:test capture
+                o:open and close camera
+                s:switch camera
+
     """
     if len(sys.argv) <= 1:
         exit_with_msg(1)
@@ -32,14 +46,41 @@ def main():
             output_version()
         elif option == "--update":
             update()
-        elif option in ["-t", "--test"]:
-            test_number = None
-            save_path = None
+        elif option in ["-a", "--analyze"]:
+            filename = "temp"
+            if len(sys.argv) >= 5:
+                filename = sys.argv[4]
             if len(sys.argv) >= 4:
-                save_path = sys.argv[3]
-            if len(sys.argv) >= 3:
-                test_number = sys.argv[2]
-            auto_test(test_number, save_path)
+                log_type = sys.argv[3]
+            else:
+                print("Invalid arguments")
+                return
+            log_path = sys.argv[2]
+            analyze_log(log_path, log_type, filename)
+        elif option in ["-t", "--test"]:
+            test_number = 10
+            filename = "temp"
+            if len(sys.argv) >= 5:
+                test_number = sys.argv[3]
+                filename = sys.argv[4]
+            elif len(sys.argv) >= 4:
+                if sys.argv[3].isdigit():
+                    test_number = sys.argv[3]
+                else:
+                    filename = sys.argv[3]
+            else:
+                print("Invalid arguments")
+                return
+            test_option = sys.argv[2]
+
+            if "c" == test_option:
+                test_capture(filename)
+            elif "o" == test_option:
+                test_open_close(test_number, filename)
+            elif "s" == test_option:
+                test_switch_camera(test_number, filename)
+            else:
+                auto_test(test_number, filename)
         else:
             print("Invalid arguments")
     else:
@@ -66,46 +107,11 @@ def exit_with_msg(index):
     sys.exit(index)
 
 
-def get_exit_msg(index):
+def analyze_log(log_path, log_type, filename):
     pass
 
 
-def test():
-    app_log_test()
-
-
-def auto_test(number, save_path):
-    log("auto test %s and save to %s" % (number, save_path))
-    # device = Device()
-    # app_log, hal_log = device.auto_test(number)
-    # log(app_log)
-    # log(hal_log)
-    # interpreter = LogInterpreter(device)
-    # interpreter.read_log(app_log)
-    # interpreter.read_log(hal_log)
-    # interpreter.analysis_hal_log()
-    # interpreter.analysis_app_log()
-    #
-    # xlsx = Excel()
-    # if save_path:
-    #     xlsx.open(save_path)
-    # else:
-    #     xlsx.open()
-    # cur_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
-    # xlsx.write_data(data=interpreter.get_result(), title=cur_time, device=device)
-    # xlsx.close()
-
-    device_msg = '{"platform":"qcom","system_version":"UFEEL-Daily_V01.20_2.ORG.10-[Oreo-8.0]-C800AE",' \
-                 '"sdk_version":"26","app_version":"8.0.50.07","app_pid":"23146","hal_pid":"503"} '
-    device = Device()
-    device.decode(device_msg)
-    app_log = "/home/liuxuyang/.KpiLog/app_log_2017_12_11_18_02_01.log"
-    hal_log = "/home/liuxuyang/.KpiLog/hal_log_2017_12_11_18_02_01.log"
-    interpreter = LogInterpreter(device)
-    interpreter.read_log(app_log)
-    interpreter.read_log(hal_log)
-    interpreter.analysis_app_log()
-    interpreter.analysis_hal_log()
+def write_data(interpreter, save_path, device):
     xlsx = Excel()
     if save_path:
         xlsx.open(save_path)
@@ -116,6 +122,71 @@ def auto_test(number, save_path):
     xlsx.close()
 
 
+def test_capture(filename):
+    save_path = generate_result_file_path(filename)
+    log("test capture and save to %s" % save_path)
+
+    device = Device()
+    interpreter = LogInterpreter(device)
+
+    app_log_path, hal_log_path = device.test_capture()
+    print("app log : %s" % app_log_path)
+    print("hal log : %s" % hal_log_path)
+
+    interpreter.read_log(app_log_path)
+    interpreter.analysis_app_log()
+
+    interpreter.read_log(hal_log_path)
+    interpreter.analysis_hal_log()
+
+    write_data(interpreter, save_path, device)
+
+
+def test_open_close(test_number, filename):
+    save_path = generate_result_file_path(filename)
+    log("test open&close camera and save to %s" % save_path)
+    device = Device()
+    interpreter = LogInterpreter(device)
+
+    log_path = device.test_open_close(test_number)
+    print("log : %s" % log_path)
+
+    interpreter.read_log(log_path)
+    interpreter.analysis_app_log()
+
+    write_data(interpreter, save_path, device)
+
+
+def test_switch_camera(test_number, filename):
+    save_path = generate_result_file_path(filename)
+    log("test switch camera and save to %s" % save_path)
+    device = Device()
+    interpreter = LogInterpreter(device)
+
+    log_path = device.test_switch_camera(test_number)
+    print("log : %s" % log_path)
+
+    interpreter.read_log(log_path)
+    interpreter.analysis_app_log()
+
+    write_data(interpreter, save_path, device)
+
+
+def auto_test(number, filename):
+    save_path = generate_result_file_path(filename)
+    log("auto test %s and save to %s" % (number, save_path))
+    device = Device()
+    app_log, hal_log = device.auto_test(number)
+    log(app_log)
+    log(hal_log)
+    interpreter = LogInterpreter(device)
+    interpreter.read_log(app_log)
+    interpreter.read_log(hal_log)
+    interpreter.analysis_hal_log()
+    interpreter.analysis_app_log()
+
+    write_data(interpreter, save_path, device)
+
+
 if __name__ == "__main__":
     main()
-    #test()

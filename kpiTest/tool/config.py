@@ -45,48 +45,62 @@ class Config:
         return Config.get_value("min_hal_version")
 
     @staticmethod
-    def find_end_tag(start_tag):
+    def find_end_tag(tag, log_type="hal_log"):
         # hal
-        hal_log_rules = Config.get_value("hal_log")
-        for rule in hal_log_rules:
-            if start_tag == rule["start_flag"]:
-                if rule["end_flag"] == "":
-                    return None
-                return rule["end_flag"]
+        hal_log_rules = Config.get_value(log_type)
+        if tag in hal_log_rules.keys():
+            return hal_log_rules[tag]["end_flag"]
+        return None
         # app
 
     @staticmethod
-    def get_title(log_type, tag):
-        print("get_title %s %s" %(log_type,tag))
-        log_rules = Config.get_value(log_type)
-        if tag is not None:
-            for rule in log_rules:
-                if rule["tag"] == tag:
-                    print(rule["title"])
-                    return rule["title"]
-        else:
-            return "unknown"
+    def get_mode_tag(tag, log_type="hal_log"):
+        hal_log_rules = Config.get_value(log_type)
+        if tag in hal_log_rules.keys() and "mode_flag" in hal_log_rules[tag].keys():
+            return hal_log_rules[tag]["mode_flag"]
+        return None
 
     @staticmethod
-    def is_start_tag(tag):
+    def get_mode_method(tag, log_type="hal_log"):
+        hal_log_rules = Config.get_value(log_type)
+        if tag in hal_log_rules.keys() and "mode_method" in hal_log_rules[tag].keys():
+            return hal_log_rules[tag]["mode_method"]
+        return None
+
+    @staticmethod
+    def get_title(tag, log_type="hal_log"):
+        if log_type == "hal_log":
+            hal_log_rules = Config.get_value(log_type)
+            if tag in hal_log_rules.keys():
+                return hal_log_rules[tag]["title"]
+            else:
+                return "unknown"
+        elif log_type == "app_log":
+            app_log_rules = Config.get_value(log_type)
+            for item in app_log_rules:
+                if item["tag"] == tag:
+                    return item["title"]
+
+    @staticmethod
+    def is_start_tag(flag, log_type="hal_log"):
         # hal
-        hal_log_rules = Config.get_value("hal_log")
-        for rule in hal_log_rules:
-            if tag == rule["start_flag"]:
-                return True
+        if log_type == "hal_log":
+            hal_log_rules = Config.get_value(log_type)
+            for rule in hal_log_rules.keys():
+                if hal_log_rules[rule]["start_flag"] == flag:
+                    return True
+            return False
         # app
         return False
 
     @staticmethod
-    def is_end_tag(tag):
+    def is_end_tag(flag, log_type="hal_log"):
         # hal
-        hal_log_rules = Config.get_value("hal_log")
-        for rule in hal_log_rules:
-            if tag == rule["end_flag"] or (tag is None and rule["end_flag"] == ""):
-                return True
+        if log_type == "hal_log":
+            hal_log_rules = Config.get_value(log_type)
+            for rule in hal_log_rules.keys():
+                if hal_log_rules[rule]["end_flag"] == flag:
+                    return True
+            return False
         # app
         return False
-
-    @staticmethod
-    def is_pair(start, end):
-        return Config.find_end_tag(start) == end

@@ -43,10 +43,8 @@ class AppLogBean(BaseLogBean):
         if self.has_mode_info():
             start_index = str(self.msg).find(AppLogBean.MODE_TYPE_TAG)
             end_index = start_index + str(self.msg)[start_index:].find(" ")
-            log("start_index : %s & end_index : %s" % (start_index, end_index))
             try:
                 mode_index = int(str(self.msg)[start_index:end_index].split(":")[-1])
-                log("mode_index : %s" % mode_index)
                 return get_mode_name(mode_index)
             except Exception, e:
                 log(e.message)

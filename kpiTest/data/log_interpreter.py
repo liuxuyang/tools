@@ -73,8 +73,8 @@ class LogInterpreter:
         for app_log in self.__app_log:
             if app_log.is_valid(self.get_app_pid()):
                 if app_log.has_mode_info():
-                    self.__add__app_to_result_with_mode(app_log.get_type(), app_log.get_mode_type(),
-                                                        app_log.get_duration())
+                    self.__add_result_with_mode("app", app_log.get_type(), app_log.get_mode_type(),
+                                                app_log.get_duration())
                 else:
                     self.__add_app_to_result(app_log.get_type(), app_log.get_duration())
         log("end analysis app log , result data len : %s" % len(self.__result_data["app"]))
@@ -89,38 +89,53 @@ class LogInterpreter:
         """
         log("start analysis qcom hal log , log len : %s" % len(self.__hal_log))
         for hal_log in self.__hal_log:
-            if hal_log.is_method_start():
-                end_log = self.__find_end_bean(hal_log)
-                # print("start : " + log.__str__())
-                # print("end : " + end_log.__str__())
+            if hal_log.is_kpi_log() and hal_log.get_msg_data().is_method_start():
+                end_log, mode = self.__find_end_bean(hal_log)
                 if end_log is not None:
-                    # print("start %s : end %s %s : %s " % (log.time, end_log.time, log.get_type(), end_log.get_type()))
-                    self.__add_hal_to_result(hal_log, end_log)
+                    msg_type = hal_log.get_msg_data().get_type()
+                    duration = end_log - hal_log
+                    self.__add_result_with_mode("hal", msg_type, mode, duration)
         log("end analysis qcom hal log , result data len : %s" % len(self.__result_data["hal"]))
 
     def __find_end_bean(self, start_bean):
-        end_tag = Config.find_end_tag(start_tag=start_bean.get_type())
-        # print(end_tag)
+        tag = start_bean.get_msg_data().get_type()
+
+        end_tag = Config.find_end_tag(tag)
         search_start = self.__hal_log.index(start_bean) + 1
-        offset = self.__get_index(self.__hal_log[search_start:], start_bean.get_type())
+        offset = self.__get_index(self.__hal_log[search_start:], tag)
         if offset is None or offset == 0:
             logs = self.__hal_log[search_start:]
         else:
             logs = self.__hal_log[search_start:search_start + offset]
-        for bean in logs:
-            if bean.is_method_end() and end_tag == bean.get_type():
-                return bean
-        log("%s loss end tag!!!" % start_bean.get_type())
-        return None
 
-    def __add_hal_to_result(self, start, end):
-        if start is None or end is None:
+        end_bean, mode, mode_method = None, None, None
+        for bean in logs:
+            if bean.is_mode_log():
+                mode_method = bean.get_msg_data().get_method()
+                if is_mode_method_valid(tag, mode_method):
+                    mode = bean.get_msg_data().get_mode()
+            elif bean.is_kpi_log():
+                if bean.get_msg_data().is_method_end() and end_tag == bean.get_msg_data().get_type():
+                    end_bean = bean
+                else:
+                    pass
+            # log("%s loss end tag!!!" % tag)
+        return end_bean, mode
+
+    def __add_result_with_mode(self, log_type, msg_type, mode, duration):
+        if log_type not in ["app", "hal"]:
             return
-        duration = end - start
-        if start.get_type() in self.__result_data["hal"]:
-            self.__result_data["hal"][start.get_type()].append(duration)
+        if msg_type in self.__result_data[log_type]:
+            if mode in self.__result_data[log_type][msg_type].keys():
+                self.__result_data[log_type][msg_type][mode].append(duration)
+                log("add to result with mode : %s and duration : %s" % (mode, duration))
+            else:
+                self.__result_data[log_type][msg_type][mode] = list([duration])
+                log("add to result with mode : %s and duration : %s" % (mode, duration))
+
         else:
-            self.__result_data["hal"][start.get_type()] = list([duration])
+            self.__result_data[log_type][msg_type] = dict()
+            self.__add_result_with_mode(log_type, msg_type, mode, duration)
 
     def __add_app_to_result(self, msg_type, duration):
         if msg_type in self.__result_data["app"]:
@@ -128,19 +143,9 @@ class LogInterpreter:
         else:
             self.__result_data["app"][msg_type] = list([duration])
 
-    def __add__app_to_result_with_mode(self, msg_type, mode, duration):
-        if msg_type in self.__result_data["app"]:
-            if mode in self.__result_data["app"][msg_type].keys():
-                self.__result_data["app"][msg_type][mode].append(duration)
-                log("add to result with mode : %s and duration : %s" % (mode,duration))
-            else:
-                self.__result_data["app"][msg_type][mode] = list([duration])
-        else:
-            self.__result_data["app"][msg_type] = dict()
-
     def __get_index(self, log_list, tag):
         for i in xrange(len(log_list)):
-            if log_list[i].get_type() == tag:
+            if log_list[i].is_kpi_log() and log_list[i].get_msg_data().get_type() == tag:
                 return i
 
     def is_qcom_platform(self):
@@ -148,3 +153,12 @@ class LogInterpreter:
 
     def is_mtk_platform(self):
         return self.get_platform() == PLATFORM_MTK
+
+
+mode_dict = {}
+
+
+def is_mode_method_valid(tag, method):
+    if tag not in mode_dict.keys():
+        mode_dict[tag] = Config.get_mode_method(tag)
+    return mode_dict[tag] is not None and method == mode_dict[tag]

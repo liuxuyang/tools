@@ -16,49 +16,43 @@ class QcomHalLogBean(BaseLogBean):
 
     DATE TIME PID TID LEVEL TAG: '<JPEG><INFO>' METHOD: LINE: '[KPI Perf]': FLAG TYPE *
 
+    normal:
     01-23 14:17:40.031   554  2145 I QCamera : <JPEG><INFO> int qcamera::QCamera2HardwareInterface::openCamera(struct hw_device_t **): 1934: [KPI Perf]: E PROFILE_OPEN_CAMERA camera id 0
+
+    with mode:
+    01-01 15:32:57.044   501   501 E QCamera2HWI: take_picture:KEY_POST_PROCESS_MODE:hdr
     """
-    KEY_WORD = "[KPI Perf]"
 
     def __init__(self, line):
         BaseLogBean.__init__(self, line)
-        if self.is_valid():
+
+        if self.is_kpi_log():
             self.__msg_data = QcomMsgData(self.msg)
+        elif self.is_mode_log():
+            self.__msg_data = QcomModeData(self.msg)
+        else:
+            self.__msg_data = None
 
     def __str__(self):
         return BaseLogBean.__str__(self) + "QCOM HAL :\n" \
                + self.__msg_data.__str__()
 
-    def __get_msg_data(self):
+    def get_msg_data(self):
         return self.__msg_data
 
-    def get_method_name(self):
-        return self.__get_msg_data().get_method_name()
-
-    def get_flag(self):
-        return self.__get_msg_data().get_flag()
-
-    def get_type(self):
-        return self.__get_msg_data().get_type()
-
-    def is_pair(self, data):
-        if (self.is_method_start() and data.is_method_end()) or (self.is_method_end() and data.is_method_start()):
-            return self.get_method_name() == data.get_method_name()
-        return False
-
     def is_valid(self):
-        return QcomHalLogBean.KEY_WORD in self.msg
+        return self.is_mode_log() or self.is_kpi_log()
 
-    def is_method_start(self):
-        return self.is_valid() and self.get_flag() == METHOD_FLAG_ENTER and self.get_type() is not None \
-               and Config.is_start_tag(self.get_type())
+    def is_kpi_log(self):
+        return QcomMsgData.KEY_WORD in self.msg
 
-    def is_method_end(self):
-        return self.is_valid() and Config.is_end_tag(self.get_type()) \
-               and (self.get_flag() is None or self.get_flag() == METHOD_FLAG_EXIT)
+    def is_mode_log(self):
+        return QcomModeData.KEY_WORD in self.msg
 
 
 class QcomMsgData:
+    KEY_WORD = "[KPI Perf]"
+
     method_pattern = re.compile(r"\sqcamera::.+\)")
     flag_pattern = re.compile(r"\s[E|X]\s")
     type_pattern = re.compile(r"\sPROFILE_\w+")
@@ -95,5 +89,29 @@ class QcomMsgData:
     def get_type(self):
         return self.__kpi_type
 
+    def is_method_start(self):
+        return self.get_flag() == METHOD_FLAG_ENTER and self.get_type() is not None and Config.is_start_tag(
+            self.get_type())
+
+    def is_method_end(self):
+        return Config.is_end_tag(self.get_type()) and (self.get_flag() is None or self.get_flag() == METHOD_FLAG_EXIT)
+
     def __str__(self):
         return "\n method : %s\n flag : %s\n type : %s\n" % (self.get_method_name(), self.get_flag(), self.get_type())
+
+
+class QcomModeData:
+    KEY_WORD = "KEY_POST_PROCESS_MODE"
+
+    def __init__(self, msg):
+        s = str(msg).split(":")
+        if len(s) < 3 and s[-2] != QcomModeData.KEY_WORD:
+            return
+        self.__method = s[-3]
+        self.__mode = s[-1]
+
+    def get_mode(self):
+        return self.__mode
+
+    def get_method(self):
+        return self.__method

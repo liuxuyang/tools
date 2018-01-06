@@ -4,8 +4,9 @@ import re
 import subprocess
 import time
 from config import Config
+from data.mode_tag import get_actions
 from error import Error
-from util import log
+from util import log, generate_log_path, LOG_TYPE_APP, LOG_TYPE_HAL
 import sys
 import unittest
 
@@ -155,7 +156,7 @@ def reboot_device():
 
 
 def is_screen_on():
-    command = 'adb shell dumpsys power | egrep "Display Power"'
+    command = 'adb shell dumpsys power | grep "Display Power"'
     output, error = run_adb_task(command)
     screen_state = re.split(r'[s|=]', output)[-1]
     if screen_state == 'ON\n':
@@ -189,45 +190,54 @@ def get_camera_state():
     return result
 
 
+def is_camera_process_alive():
+    command = "adb shell ps | grep %s" % pkg_name
+    output, error = run_adb_task(command)
+    if output:
+        return True
+    return False
+
+
 def close_camera_force():
     if get_camera_state() & CAMERA_STATE_OPENED == CAMERA_STATE_OPENED:
         command = "adb shell am force-stop %s" % pkg_name
         run_adb_task(command)
     else:
-        print("%s is already closed.")
+        print("%s is already force closed.")
 
 
-def put_camera_to_background():
+def close_camera():
     if is_screen_on():
         camera_state = get_camera_state()
+        log("close_camera camera_state %s" % camera_state)
         if camera_state & CAMERA_STATE_OPENED == CAMERA_STATE_OPENED \
                 and camera_state & CAMERA_STATE_VISIBLE == CAMERA_STATE_VISIBLE:
-            command = "adb shell input keyevent 3"  # 3 -->  "KEYCODE_HOME"
+            command = "adb shell input keyevent 4"
             run_adb_task(command)
         else:
-            print("%s is closed.please open it." % pkg_name)
+            print("%s is already closed." % pkg_name)
     else:
         print("screen is off")
 
 
-def open_camera_cold():
+def open_camera_cold(action="android.intent.action.MAIN"):
     if not is_screen_on():
         turn_screen(True)
     camera_state = get_camera_state()
     if camera_state & CAMERA_STATE_OPENED == CAMERA_STATE_OPENED:
         close_camera_force()
 
-    command = "adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n " \
-              "%s/%s.activity.CameraActivity" % (pkg_name, pkg_name)
+    command = "adb shell am start -a %s -c android.intent.category.LAUNCHER -n " \
+              "%s/%s.activity.CameraActivity" % (action, pkg_name, pkg_name)
     run_adb_task(command)
 
 
-def open_camera_warm():
+def open_camera_warm(action="android.intent.action.MAIN"):
     if is_screen_on():
-        camera_state = get_camera_state()
-        if camera_state & CAMERA_STATE_OPENED == CAMERA_STATE_OPENED:
-            command = "adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n " \
-                      "%s/%s.activity.CameraActivity" % (pkg_name, pkg_name)
+        if is_camera_process_alive():
+            command = "adb shell am start -a %s -c android.intent.category.LAUNCHER -n " \
+                      "%s/%s.activity.CameraActivity" % (action, pkg_name, pkg_name)
+            log("open_camera_warm:%s" % command)
             run_adb_task(command)
         else:
             print("%s is closed. please open it and put it to background." % pkg_name)
@@ -276,10 +286,10 @@ def switch_bf_camera():
     pass
 
 
-def init_logcat(app_pid, hal_app, app_log, hal_log):
+def init_logcat(app_pid, hal_pid, app_log, hal_log):
     clear_command = "adb logcat -c"
     app_command = "adb logcat --pid=%s" % app_pid
-    hal_command = "adb logcat --pid=%s" % hal_app
+    hal_command = "adb logcat --pid=%s" % hal_pid
     log(app_command)
     log(hal_command)
     os.system(clear_command)
@@ -288,24 +298,16 @@ def init_logcat(app_pid, hal_app, app_log, hal_log):
     return app_proc, hal_proc
 
 
-LOG_TYPE_APP = 0
-LOG_TYPE_HAL = 1
+def prepare_logcat(pid, log_file):
+    command = "adb logcat --pid=%s" % pid
+    log(command)
+    proc = subprocess.Popen(command.split(), stdout=log_file)
+    return proc
 
 
-def get_result_file(type):
-    cur_time = time.strftime('%Y_%m_%d_%H_%M_%S', time.localtime(time.time()))
-    home_path = os.environ['HOME']
-    log_path = ".KpiLog"
-    if type == LOG_TYPE_APP:
-        log_name = "app_log_%s.log" % cur_time
-    elif type == LOG_TYPE_HAL:
-        log_name = "hal_log_%s.log" % cur_time
-    else:
-        log_name = "temp.log"
-    full_path = os.path.join(home_path, log_path)
-    if not os.path.exists(full_path):
-        os.makedirs(full_path)
-    return os.path.join(full_path, log_name)
+def clear_logcat():
+    clear_command = "adb logcat -c"
+    os.system(clear_command)
 
 
 class Device:
@@ -339,25 +341,71 @@ class Device:
                                     self.app_pid, self.hal_pid)
 
     def auto_test(self, number=10):
-        app_log = get_result_file(LOG_TYPE_APP)
-        hal_log = get_result_file(LOG_TYPE_HAL)
+        app_log = generate_log_path(LOG_TYPE_APP)
+        hal_log = generate_log_path(LOG_TYPE_HAL)
         app_file = open(app_log, 'w')
         hal_file = open(hal_log, 'w')
         p1, p2 = init_logcat(self.app_pid, self.hal_pid, app_file, hal_file)
-        for i in xrange(int(number)):
-            log(i)
+        for action in get_actions():
+            close_camera()
+            time.sleep(5)
             # test camera cold warm
-            put_camera_to_background()
+            open_camera_warm(action)
             time.sleep(5)
-            open_camera_warm()
             # test take picture
-            time.sleep(5)
-            take_picture(3, 5000)
+            take_picture(number, 5000)
         p1.kill()
         p2.kill()
         app_file.close()
         hal_file.close()
         return app_log, hal_log
+
+    def test_capture(self):
+        app_log_path = generate_log_path(LOG_TYPE_APP)
+        hal_log_path = generate_log_path(LOG_TYPE_HAL)
+
+        clear_logcat()
+
+        app_log_file = open(app_log_path, 'w')
+        app_proc = prepare_logcat(self.app_pid, app_log_file)
+
+        hal_log_file = open(hal_log_path, 'w')
+        hal_proc = prepare_logcat(self.hal_pid, hal_log_file)
+
+        while True:
+            input_opt = str(raw_input("Please input option('c -n':capture n times , 'q':quit):"))
+            if input_opt.startswith("c"):
+                try:
+                    times = int(input_opt[input_opt.find("-") + 1:])
+                except Exception:
+                    times = 10
+                take_picture(times, 5000)
+            elif input_opt.startswith("q"):
+                print("Quit!")
+                break
+            else:
+                print("input error!")
+        app_proc.kill()
+        hal_proc.kill()
+        app_log_file.close()
+        hal_log_file.close()
+        return app_log_path, hal_log_path
+
+    def test_open_close(self, number):
+        log_path = generate_log_path(LOG_TYPE_APP)
+        log_file = open(log_path, 'w')
+        pid = self.app_pid
+        proc = prepare_logcat(pid, log_file)
+        for i in xrange(number):
+            time.sleep(5)
+            close_camera()
+            time.sleep(5)
+            open_camera_cold()
+        proc.kill()
+        log_file.close()
+
+    def test_switch_camera(self, number):
+        pass
 
 
 class __UnitTest(unittest.TestCase):
@@ -365,40 +413,9 @@ class __UnitTest(unittest.TestCase):
     Run a suite of unit tests on this module.
     """
 
-    # def test_get_device_id(self):
-    #     device_id = get_device_id()
-    #     print("device_id : " + device_id)
-    #
-    # def test_root_remount_device(self):
-    #     root_device()
-    #     remount_device()
-    #
-    # def test_turn_on_screen(self):
-    #     turn_screen(True)
-    #
-    # def test_turn_off_screen(self):
-    #     turn_screen(False)
-    #
-    # def test_get_camera_state(self):
-    #     print(get_camera_state())
-    #
-    # def test_close_camera(self):
-    #     close_camera_force()
-    #
-    # def test_input_home(self):
-    #     put_camera_to_background()
-    #
-    # def test_open_camera_cold(self):
-    #     open_camera_cold()
-
-    # def test_open_camera_warm(self):
-    #     open_camera_warm()
-
-    # def test_take_picture(self):
-    #     take_picture(10)
-
-    def test_get_app_version(self):
-        log(get_hal_pid(get_sdk_version()))
+    def test_device(self):
+        action = "android.myos.action.PANORAMACAMERA"
+        open_camera_cold(action)
 
 
 if __name__ == "__main__":

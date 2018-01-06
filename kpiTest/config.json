@@ -1,53 +1,33 @@
 {
-  "pkg_name":"com.myos.camera",
-  "min_app_version":"",
-  "min_hal_version":"",
+  "pkg_name": "com.myos.camera",
+  "min_app_version": "",
+  "min_hal_version": "",
   "debug": true,
   "save_path": "test.xlsx",
-  "hal_log": [
-    {
-      "tag": "PROFILE_OPEN_CAMERA",
+  "hal_log": {
+    "PROFILE_OPEN_CAMERA": {
       "title": "open camera",
       "start_flag": "PROFILE_OPEN_CAMERA",
       "end_flag": "PROFILE_OPEN_CAMERA"
     },
-    {
-      "tag": "PROFILE_CLOSE_CAMERA",
-      "title": "close camera",
-      "start_flag": "PROFILE_CLOSE_CAMERA",
-      "end_flag": "PROFILE_CLOSE_CAMERA"
-    },
-    {
-      "tag": "PROFILE_START_PREVIEW",
+    "PROFILE_START_PREVIEW": {
       "title": "start preview",
       "start_flag": "PROFILE_START_PREVIEW",
       "end_flag": "PROFILE_FIRST_PREVIEW_FRAME"
     },
-    {
-      "tag": "PROFILE_STOP_PREVIEW",
-      "title": "stop preview",
-      "start_flag": "PROFILE_STOP_PREVIEW",
-      "end_flag": ""
-    },
-    {
-      "tag": "PROFILE_TAKE_PICTURE",
+    "PROFILE_TAKE_PICTURE": {
       "title": "take picture",
       "start_flag": "PROFILE_TAKE_PICTURE",
-      "end_flag": "PROFILE_JPEG_CB"
+      "end_flag": "PROFILE_JPEG_CB",
+      "mode_method": "take_picture",
+      "mode_flag": "KEY_POST_PROCESS_MODE"
     },
-    {
-      "tag": "PROFILE_START_RECORDING",
+    "PROFILE_START_RECORDING": {
       "title": "start recording",
       "start_flag": "PROFILE_START_RECORDING",
       "end_flag": "PROFILE_FIRST_RECORD_FRAME"
-    },
-    {
-      "tag": "PROFILE_STOP_RECORDING",
-      "title": "stop recording",
-      "start_flag": "PROFILE_STOP_RECORDING",
-      "end_flag": ""
     }
-  ],
+  },
   "app_log": [
     {
       "tag": "PROFILE_OPEN_CAMERA_COLD",
