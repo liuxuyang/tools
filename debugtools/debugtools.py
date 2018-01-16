@@ -151,10 +151,17 @@ def update():
     if 0 != os.system("git reset --hard HEAD && git pull --rebase"):
         print "Can't update!"
 
-def update_beta_version():
+
+def switch_stable_version():
     go_script_dir()
-    if 0 != os.system("git reset --hard HEAD && git pull --rebase"):
-        print "Can't update!"
+    if 0 != os.system("git checkout master"):
+        print "Can't switch!"
+
+
+def switch_beta_version():
+    go_script_dir()
+    if 0 != os.system("git checkout develop"):
+        print "Can't switch!"
 
 
 def turn_on_screen():
@@ -184,7 +191,7 @@ def main():
     --version       : Prints the version number
     --help          : Display this help
     --update        : Update this program
-    --update2beta   : Update this program to latest beta version
+    --switch [0:stable 1:beta]   : switch this program to  stable/beta version
 
     -i [<apk_path>] : just install app, do not rebuild
     -d:             : install debug app
@@ -207,8 +214,14 @@ def main():
             print get_version()
         elif option == "--update":
             update()
-        elif option == "--update2beta":
-            update_beta_version()
+        elif option == "--switch":
+            version_type = sys.argv[2]
+            if version_type == "0":
+                switch_stable_version()
+            elif version_type == "1":
+                switch_beta_version()
+            else:
+                exit(8)
         else:
             exit_with_msg(8)
         exit_with_msg(0)
