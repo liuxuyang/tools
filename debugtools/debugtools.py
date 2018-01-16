@@ -151,6 +151,11 @@ def update():
     if 0 != os.system("git reset --hard HEAD && git pull --rebase"):
         print "Can't update!"
 
+def update_beta_version():
+    go_script_dir()
+    if 0 != os.system("git reset --hard HEAD && git pull --rebase"):
+        print "Can't update!"
+
 
 def turn_on_screen():
     screen_id = ''
@@ -178,7 +183,8 @@ def main():
     Options include:
     --version       : Prints the version number
     --help          : Display this help
-    ---update        : Update this program
+    --update        : Update this program
+    --update2beta   : Update this program to latest beta version
 
     -i [<apk_path>] : just install app, do not rebuild
     -d:             : install debug app
@@ -201,6 +207,8 @@ def main():
             print get_version()
         elif option == "--update":
             update()
+        elif option == "--update2beta":
+            update_beta_version()
         else:
             exit_with_msg(8)
         exit_with_msg(0)
