@@ -9,6 +9,8 @@ GRADLE_PATH = os.environ['HOME'] + '/.gradle/wrapper/dists/'
 APK_BUILD_PATH = "app/build/outputs/apk/"
 APK_PUSH_PATH = "/system/priv-app/"
 APP_NAME = "ApeCamera"
+VERSION_TYPE_KEYS = ["stable", "beta"]
+VERSION_TYPE = {"stable": "master", "beta": "develop"}
 
 INVALID_SIGN_MSG = "Internal error : invalid sign"
 EXIT_MSG = [
@@ -32,8 +34,21 @@ def init_config():
 
 
 def log(msg):
-    if IS_DEBUG:
-        print "%s:%s" % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg)
+    if IS_DEBUG and msg is not None:
+        if not isinstance(msg, str):
+            msg = str(msg)
+        msg_array = msg.split(os.linesep)
+        for msg_line in msg_array:
+            if msg_line:
+                print "%s : %s" % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_line)
+
+
+def run_task(cmd):
+    command = "%s" % cmd
+    proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, error = proc.communicate()
+    return_code = proc.returncode
+    return output, error, return_code
 
 
 def root_devices():
@@ -51,7 +66,7 @@ def clear_old_apk():
 
 
 def build_apk():
-    if 0 != os.system(find_gradle_path() + " build"):
+    if 0 != os.system("%s build" % find_gradle_path()):
         exit_with_msg(3)
 
 
@@ -142,7 +157,7 @@ def get_version():
     key = "version"
     for i in open(CONFIG_PATH).readlines():
         if i.startswith(key):
-            return i.split(":")[-1].strip(" ").lstrip("\"").rstrip("\"")
+            return i.split(":")[-1].strip(" ").lstrip("\"").rstrip("\"") + " " + get_version_type()
     return "Can't find version code."
 
 
@@ -152,16 +167,33 @@ def update():
         print "Can't update!"
 
 
-def switch_stable_version():
-    go_script_dir()
-    if 0 != os.system("git checkout master"):
-        print "Can't switch!"
+def get_version_type(branch=None):
+    if branch is None:
+        out, err, code = run_task("git branch -v")
+        if 0 == code:
+            for line in out.split(os.linesep):
+                if line.startswith("*"):
+                    branch = line.split(" ")[1]
+    for key in VERSION_TYPE.keys():
+        if VERSION_TYPE.get(key) == branch:
+            return key
+    exit_with_msg(8)
 
 
-def switch_beta_version():
-    go_script_dir()
-    if 0 != os.system("git checkout develop"):
-        print "Can't switch!"
+def switch_stable_version(index):
+    branch = None
+    try:
+        index = int(index)
+        if index >= 0 and index < len(VERSION_TYPE_KEYS):
+            branch = VERSION_TYPE.get(VERSION_TYPE_KEYS[int(index)])
+        else:
+            exit_with_msg(8)
+    except:
+        exit_with_msg(8)
+    if branch:
+        go_script_dir()
+        if 0 != os.system("git checkout %s" % branch):
+            print "Can't switch!"
 
 
 def turn_on_screen():
@@ -196,13 +228,13 @@ def main():
     -i [<apk_path>] : just install app, do not rebuild
     -d:             : install debug app
     """
-    log(sys.argv)
+    # log(sys.argv)
 
     run = True
     just_install = False
     install_debug = False
     if len(sys.argv) < 2:
-        exit(8)
+        exit_with_msg(8)
     option = sys.argv[1]
     apk_path = None
 
@@ -215,13 +247,11 @@ def main():
         elif option == "--update":
             update()
         elif option == "--switch":
-            version_type = sys.argv[2]
-            if version_type == "0":
-                switch_stable_version()
-            elif version_type == "1":
-                switch_beta_version()
-            else:
-                exit(8)
+            log("start switch")
+            switch_stable_version(sys.argv[2])
+            log("end switch")
+        elif option == "--test":
+            test()
         else:
             exit_with_msg(8)
         exit_with_msg(0)
@@ -243,16 +273,16 @@ def main():
         remount_devices()
         if not just_install:
             clear_old_apk()
-            print("start build:" + datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            log("start build")
             build_apk()
         install_apk(apk_path, install_debug)
         restart_app()
-        # turn_on_screen()
+        log("end!")
         exit_with_msg(0)
 
 
 def test():
-    clear_old_apk()
+    log(get_version_type())
 
 
 if __name__ == '__main__':
