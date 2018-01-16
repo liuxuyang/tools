@@ -1,6 +1,8 @@
 import time
 import os
 
+import sys
+
 from config import Config
 
 LOG_TYPE_APP = 0
@@ -23,9 +25,26 @@ def date_to_time(date):
     return timeStamp
 
 
+def check_int(arg):
+    if isinstance(arg, str) and arg.isdigit():
+        return int(arg)
+    elif isinstance(arg, int):
+        return arg
+    else:
+        return None
+
+
+def print_progress(index, count, format_str):
+    percent = int(float(index) / count * 100)
+    sys.stdout.write(("\r" + format_str) % percent)
+    sys.stdout.flush()
+
+
 def check_duration(duration):
-    if duration.isdigit():
+    if isinstance(duration, str) and duration.isdigit():
         return int(duration)
+    elif isinstance(duration, int) or isinstance(duration, float) or isinstance(duration, long):
+        return duration
     else:
         return "NAN"
 

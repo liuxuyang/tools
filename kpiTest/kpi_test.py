@@ -1,7 +1,7 @@
 import time
 
 from tool.devices import Device
-from tool.util import log, generate_result_file_path
+from tool.util import log, generate_result_file_path, check_int
 import sys
 from data.log_interpreter import LogInterpreter
 from tool.target import Excel
@@ -72,7 +72,7 @@ def main():
                 print("Invalid arguments")
                 return
             test_option = sys.argv[2]
-
+            test_number = check_int(test_number)
             if "c" == test_option:
                 test_capture(filename)
             elif "o" == test_option:
@@ -150,11 +150,11 @@ def test_open_close(test_number, filename):
 
     log_path = device.test_open_close(test_number)
     print("log : %s" % log_path)
+    if log_path:
+        interpreter.read_log(log_path)
+        interpreter.analysis_app_log()
 
-    interpreter.read_log(log_path)
-    interpreter.analysis_app_log()
-
-    write_data(interpreter, save_path, device)
+        write_data(interpreter, save_path, device)
 
 
 def test_switch_camera(test_number, filename):

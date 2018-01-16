@@ -2,6 +2,7 @@ from openpyxl import *
 
 from config import Config
 from util import check_file_exist, log, check_duration
+import numpy as np
 
 
 class Excel:
@@ -58,8 +59,6 @@ class Excel:
         type_title_row = start_row
         type_title_column = start_column
 
-        data_row = start_row + 2
-
         for i in xrange(len(data.keys())):
             key = data.keys()[i]
 
@@ -75,26 +74,42 @@ class Excel:
 
                 for mode in mode_titles:
                     self.ws.cell(row=mode_title_row, column=mode_title_column, value=mode)  # write header
-
+                    log("write item, mode : %s" % mode)
+                    sum_value = 0
                     time_data = item.get(mode)
+                    data_row = mode_title_row + 1
                     if isinstance(time_data, list):
                         for j in xrange(len(time_data)):
-                            row = data_row + j
+                            row = mode_title_row + j
                             column = mode_title_column
-                            value = time_data[j]
-                            self.ws.cell(row=row, column=column, value=check_duration(value))  # write data
+                            value = check_duration(time_data[j])
+                            self.ws.cell(row=row, column=column, value=value)  # write data
+                            sum_value += value
+                    if len(time_data) > 0:
+                        self.ws.cell(row=data_row + len(time_data), column=mode_title_column,
+                                     value="svg:")  # write avg data
+                        self.ws.cell(row=data_row + len(time_data) + 1, column=mode_title_column,
+                                     value=sum_value / len(time_data))  # write avg data
                     else:
-                        log(" __write_item error, mode : %s" % mode)
+                        log("write item error, mode : %s" % mode)
                     mode_title_column = mode_title_column + 1
 
                 type_title_column = type_title_column + len(mode_titles)
             elif isinstance(item, list):
+                sum_value = 0
+                data_row = start_row + 1
                 for j in xrange(len(item)):
                     row = data_row + j
                     column = type_title_column
-                    value = item[j]
-                    self.ws.cell(row=row, column=column, value=check_duration(value))  # write data
+                    value = check_duration(item[j])
+                    sum_value += value
+                    self.ws.cell(row=row, column=column, value=value)  # write data
+                if len(item) > 0:
+                    self.ws.cell(row=data_row + len(item), column=type_title_column,
+                                 value="svg:")  # write avg data
+                    self.ws.cell(row=data_row + len(item) + 1, column=type_title_column,
+                                 value=sum_value / len(item))  # write avg data
                 type_title_column = type_title_column + 1
             else:
-                log(" __write_item error, key : %s" % key)
+                log("write item error, key : %s" % key)
         return type_title_column

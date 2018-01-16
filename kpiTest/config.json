@@ -64,6 +64,10 @@
     {
       "tag": "PROFILE_SWITCH_VIDEO_TO_PHOTO",
       "title": "switch_mode(v2p)"
+    },
+    {
+      "tag": "PROFILE_CLOSE_CAMERA",
+      "title": "close_camera"
     }
   ]
 }

@@ -6,7 +6,7 @@ import time
 from config import Config
 from data.mode_tag import get_actions
 from error import Error
-from util import log, generate_log_path, LOG_TYPE_APP, LOG_TYPE_HAL
+from util import log, generate_log_path, LOG_TYPE_APP, LOG_TYPE_HAL, print_progress
 import sys
 import unittest
 
@@ -254,7 +254,9 @@ def take_picture(count=1, delay=1000):
             for i in xrange(count):
                 command = "adb shell input keyevent 24"  # 24 -->  "KEYCODE_VOLUME_UP"
                 run_adb_task(command)
+                print_progress(i, count, "take picture run : %d")
                 time.sleep(delay / 1000)
+            print("/n")
         else:
             print("%s is closed.please open it." % pkg_name)
     else:
@@ -283,7 +285,13 @@ def switch_bf_camera():
     """
     switch front/back camera
     """
-    pass
+    x, y = 580, 1380
+    touch(x, y)
+
+
+def touch(x, y):
+    cmd = "adb shell input tap %d %d" % (x, y)
+    run_adb_task(cmd)
 
 
 def init_logcat(app_pid, hal_pid, app_log, hal_log):
@@ -403,9 +411,20 @@ class Device:
             open_camera_cold()
         proc.kill()
         log_file.close()
+        return log_path
 
     def test_switch_camera(self, number):
-        pass
+        log_path = generate_log_path(LOG_TYPE_APP)
+        log_file = open(log_path, 'w')
+        pid = self.app_pid
+        proc = prepare_logcat(pid, log_file)
+        for i in xrange(number):
+            time.sleep(2)
+            switch_bf_camera()
+            time.sleep(2)
+        proc.kill()
+        log_file.close()
+        return log_path
 
 
 class __UnitTest(unittest.TestCase):
