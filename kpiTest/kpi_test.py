@@ -6,7 +6,7 @@ import sys
 from data.log_interpreter import LogInterpreter
 from tool.target import Excel
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 
 def main():
