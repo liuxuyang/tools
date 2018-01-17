@@ -3,6 +3,7 @@ import sys
 import re
 import subprocess
 from datetime import datetime
+import time
 
 CONFIG_PATH = "config"
 GRADLE_PATH = os.environ['HOME'] + '/.gradle/wrapper/dists/'
@@ -246,7 +247,7 @@ def main():
     -d:             : install debug app
     """
     # log(sys.argv)
-
+    start_time = time.time()
     run = True
     just_install = False
     install_debug = False
@@ -293,7 +294,9 @@ def main():
             build_apk()
         install_apk(apk_path, install_debug)
         restart_app()
-        log("end!")
+
+        duration = time.time() - start_time
+        log("end! duration : %s" % duration)
         exit_with_msg(0)
 
 
