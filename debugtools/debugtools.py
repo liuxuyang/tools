@@ -48,7 +48,7 @@ def run_task(cmd):
     proc = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, error = proc.communicate()
     return_code = proc.returncode
-    return output, error, return_code
+    return output.strip(), error.strip(), return_code
 
 
 def root_devices():
@@ -161,10 +161,26 @@ def get_version():
     return "Can't find version code."
 
 
+def get_help():
+    return main.__doc__ % get_version()
+
+
 def update():
     go_script_dir()
-    if 0 != os.system("git reset --hard HEAD && git pull --rebase"):
-        print "Can't update!"
+    get_remote_name_cmd = "git remote -v"
+    out, err, code = run_task(get_remote_name_cmd)
+    remote_branch_name = VERSION_TYPE.get(get_version_type())
+    remote_name = None
+    if code == 0:
+        lines = out.split(os.linesep)
+        log(lines)
+        if len(lines) == 2:
+            remote_name = lines[0].split("\t")[0]
+    if remote_name:
+        if 0 != os.system("git reset --hard HEAD && git pull %s %s --rebase" % (remote_name, remote_branch_name)):
+            log("Can't update!")
+    else:
+        log("get remote name fail")
 
 
 def get_version_type(branch=None):
@@ -218,6 +234,7 @@ def turn_on_screen():
 
 def main():
     """
+    Myos Camera debug tools %s.
     This program provide build & install Tinno ApeCamera features.
     Options include:
     --version       : Prints the version number
@@ -241,7 +258,7 @@ def main():
     if option.startswith("--"):
         run = False
         if option == "--help":
-            print main.__doc__
+            print get_help()
         elif option == "--version":
             print get_version()
         elif option == "--update":
@@ -282,7 +299,7 @@ def main():
 
 
 def test():
-    log(get_version_type())
+    run_task("ls")
 
 
 if __name__ == '__main__':
