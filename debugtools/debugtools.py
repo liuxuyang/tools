@@ -250,39 +250,38 @@ def main():
     run = True
     just_install = False
     install_debug = False
-    if len(sys.argv) < 2:
-        exit_with_msg(8)
-    option = sys.argv[1]
-    apk_path = None
+    if len(sys.argv) >= 2:
+        option = sys.argv[1]
+        apk_path = None
 
-    if option.startswith("--"):
-        run = False
-        if option == "--help":
-            print get_help()
-        elif option == "--version":
-            print get_version()
-        elif option == "--update":
-            update()
-        elif option == "--switch":
-            log("start switch")
-            switch_stable_version(sys.argv[2])
-            log("end switch")
-        elif option == "--test":
-            test()
+        if option.startswith("--"):
+            run = False
+            if option == "--help":
+                print get_help()
+            elif option == "--version":
+                print get_version()
+            elif option == "--update":
+                update()
+            elif option == "--switch":
+                log("start switch")
+                switch_stable_version(sys.argv[2])
+                log("end switch")
+            elif option == "--test":
+                test()
+            else:
+                exit_with_msg(8)
+            exit_with_msg(0)
+
+        elif option.startswith("-"):
+            if "d" in option:
+                install_debug = True
+            if "i" in option:
+                just_install = True
+                if len(sys.argv) == 3:
+                    apk_path = sys.argv[2]
+
         else:
             exit_with_msg(8)
-        exit_with_msg(0)
-
-    elif option.startswith("-"):
-        if "d" in option:
-            install_debug = True
-        if "i" in option:
-            just_install = True
-            if len(sys.argv) == 3:
-                apk_path = sys.argv[2]
-
-    else:
-        exit_with_msg(8)
 
     if run:
         init_config()
