@@ -250,9 +250,9 @@ def main():
     run = True
     just_install = False
     install_debug = False
+    apk_path = None
     if len(sys.argv) >= 2:
         option = sys.argv[1]
-        apk_path = None
 
         if option.startswith("--"):
             run = False
