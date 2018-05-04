@@ -3,4 +3,4 @@ build_apk_path : "app/build/outputs/apk/"
 apk_push_path : "/system/priv-app/"
 apk_name : "ApeCamera"
 
-version : "1.0.7"
+version : "1.0.8"

@@ -2,9 +2,11 @@ import os
 import sys
 import re
 import subprocess
-from datetime import datetime
 import time
+import logging
 
+PROJECT_NAME = "CAM_DEBUG_TOOL"
+LOG_PATH = os.path.join(os.environ['HOME'], ".log/camera_debug_tool")
 CONFIG_PATH = "config"
 GRADLE_PATH = os.environ['HOME'] + '/.gradle/wrapper/dists/'
 APK_BUILD_PATH = "app/build/outputs/apk/"
@@ -26,7 +28,6 @@ EXIT_MSG = [
     "Args invalid",  # 8
 ]
 
-IS_DEBUG = True
 config = None
 
 
@@ -34,14 +35,22 @@ def init_config():
     pass
 
 
-def log(msg):
-    if IS_DEBUG and msg is not None:
-        if not isinstance(msg, str):
-            msg = str(msg)
-        msg_array = msg.split(os.linesep)
-        for msg_line in msg_array:
-            if msg_line:
-                print "%s : %s" % (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg_line)
+logger = logging.getLogger(PROJECT_NAME)
+formatter = logging.Formatter('%(asctime)s %(levelname)-8s: %(message)s')
+
+if not os.path.exists(LOG_PATH):
+    os.makedirs(LOG_PATH)
+LOG_FILE_PATH = os.path.join(LOG_PATH, "log")
+file_handler = logging.FileHandler(LOG_FILE_PATH)
+file_handler.setFormatter(formatter)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+logger.setLevel(logging.INFO)
 
 
 def run_task(cmd):
@@ -128,7 +137,7 @@ def find_gradle_path():
         for line in build_file.readlines():
             if '//services.gradle.org/distributions/' in line:
                 gradle_version = line.split('/')[-1][:-5]
-        log('gradle version : ' + gradle_version)
+        logger.info('gradle version : ' + gradle_version)
         gradle_full_path = GRADLE_PATH + str(gradle_version)
         files = os.listdir(gradle_full_path)
         if os.path.isdir(gradle_full_path + '/' + files[0]):
@@ -141,11 +150,11 @@ def find_gradle_path():
 
 def exit_with_msg(sign):
     if sign >= len(EXIT_MSG):
-        print INVALID_SIGN_MSG
+        logger.critical(INVALID_SIGN_MSG)
         exit(-1)
     else:
         if sign != 0:
-            print EXIT_MSG[sign]
+            logger.error(EXIT_MSG[sign])
         exit(sign)
 
 
@@ -174,14 +183,14 @@ def update():
     remote_name = None
     if code == 0:
         lines = out.split(os.linesep)
-        log(lines)
+        logger.debug(lines)
         if len(lines) == 2:
             remote_name = lines[0].split("\t")[0]
     if remote_name:
         if 0 != os.system("git reset --hard HEAD && git pull %s %s --rebase" % (remote_name, remote_branch_name)):
-            log("Can't update!")
+            logger.error("Can't update!")
     else:
-        log("get remote name fail")
+        logger.error("get remote name fail")
 
 
 def get_version_type(branch=None):
@@ -210,7 +219,7 @@ def switch_stable_version(index):
     if branch:
         go_script_dir()
         if 0 != os.system("git checkout %s" % branch):
-            print "Can't switch!"
+            logger.warning("Can't switch!")
 
 
 def turn_on_screen():
@@ -220,7 +229,7 @@ def turn_on_screen():
             screen_id = s[7:]
 
     if not screen_id:
-        print 'Error: need to specify screen serial'
+        logger.error('Error: need to specify screen serial')
         assert False
 
     cmd = ('adb -s %s shell dumpsys power | egrep "Display Power"'
@@ -241,10 +250,11 @@ def main():
     --version       : Prints the version number
     --help          : Display this help
     --update        : Update this program
-    --switch [0:stable 1:beta]   : switch this program to  stable/beta version
+    --switch [0:stable 1:beta]
+                    : switch this program to  stable/beta version
 
     -i [<apk_path>] : just install app, do not rebuild
-    -d:             : install debug app
+    -d              : install debug app
     """
     # log(sys.argv)
     start_time = time.time()
@@ -264,9 +274,9 @@ def main():
             elif option == "--update":
                 update()
             elif option == "--switch":
-                log("start switch")
+                logger.debug("start switch")
                 switch_stable_version(sys.argv[2])
-                log("end switch")
+                logger.debug("end switch")
             elif option == "--test":
                 test()
             else:
@@ -290,13 +300,13 @@ def main():
         remount_devices()
         if not just_install:
             clear_old_apk()
-            log("start build")
+            logger.info("start build")
             build_apk()
         install_apk(apk_path, install_debug)
         restart_app()
 
         duration = time.time() - start_time
-        log("end! duration : %s" % duration)
+        logger.info("end! duration : %s" % duration)
         exit_with_msg(0)
 
 
