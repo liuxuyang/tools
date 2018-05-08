@@ -4,6 +4,7 @@ import re
 import subprocess
 import time
 import logging
+import argparse
 
 PROJECT_NAME = "CAM_DEBUG_TOOL"
 LOG_PATH = os.path.join(os.environ['HOME'], ".log/camera_debug_tool")
@@ -27,13 +28,6 @@ EXIT_MSG = [
     "App restart fail",  # 7
     "Args invalid",  # 8
 ]
-
-config = None
-
-
-def init_config():
-    pass
-
 
 logger = logging.getLogger(PROJECT_NAME)
 formatter = logging.Formatter('%(asctime)s %(levelname)-8s: %(message)s')
@@ -113,7 +107,7 @@ def install_apk(apk_path, is_debug):
     install_file_path = find_install_path()
     install_file_name = find_install_path() + '.apk'
     push_path = os.path.join(APK_PUSH_PATH, install_file_path, install_file_name, )
-    cmd = 'adb push ' + install_apk_path + " " + push_path
+    cmd = 'adb push %s %s' % (install_apk_path, push_path)
     if 0 != os.system(cmd):
         exit_with_msg(4)
 
@@ -256,62 +250,40 @@ def main():
     -i [<apk_path>] : just install app, do not rebuild
     -d              : install debug app
     """
-    # log(sys.argv)
-    start_time = time.time()
-    run = True
-    just_install = False
-    install_debug = False
-    apk_path = None
-    if len(sys.argv) >= 2:
-        option = sys.argv[1]
+    parse = argparse.ArgumentParser()
 
-        if option.startswith("--"):
-            run = False
-            if option == "--help":
-                print get_help()
-            elif option == "--version":
-                print get_version()
-            elif option == "--update":
-                update()
-            elif option == "--switch":
-                logger.debug("start switch")
-                switch_stable_version(sys.argv[2])
-                logger.debug("end switch")
-            elif option == "--test":
-                test()
-            else:
-                exit_with_msg(8)
-            exit_with_msg(0)
+    parse.add_argument("-v", "--version", version=get_version(), action="version", help="prints the version number")
+    parse.add_argument("-i", "--install", dest="app_path", type=str, help="install app")
+    parse.add_argument("-d", "--debug", action="store_true", help="run with debug app")
+    parse.add_argument("-n", "--no-build", action="store_true", default=False, help="not build app ,just run with pre-build app")
+    parse.add_argument("-s", "--switch", dest="version_type", type=int, choices=[0, 1],
+                       help="switch this program to stable/beta version")
+    parse.add_argument("-u", "--update", dest="update", action="store_true", help="update this program")
+    args = parse.parse_args()
 
-        elif option.startswith("-"):
-            if "d" in option:
-                install_debug = True
-            if "i" in option:
-                just_install = True
-                if len(sys.argv) == 3:
-                    apk_path = sys.argv[2]
-
-        else:
-            exit_with_msg(8)
-
-    if run:
-        init_config()
+    if args.update:
+        update()
+    elif args.version_type is not None:
+        switch_stable_version(args.version_type)
+    elif args.app_path is not None:
         root_devices()
         remount_devices()
-        if not just_install:
+        install_apk(args.app_path, args.debug)
+        restart_app()
+        exit_with_msg(0)
+    else:
+        start_time = time.time()
+        root_devices()
+        remount_devices()
+        if not args.no_build:
             clear_old_apk()
             logger.info("start build")
             build_apk()
-        install_apk(apk_path, install_debug)
+        install_apk(None, args.debug)
         restart_app()
-
         duration = time.time() - start_time
         logger.info("end! duration : %s" % duration)
         exit_with_msg(0)
-
-
-def test():
-    run_task("ls")
 
 
 if __name__ == '__main__':
