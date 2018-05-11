@@ -53,7 +53,8 @@ def init_config():
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME, "ApeCamera")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_CONFIG_PATH, cfg_path)
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH, os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH, os.environ['HOME'] + '/.gradle/wrapper/dists/')
+        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH,
+                   os.path.join(os.environ['HOME'], '/.gradle/wrapper/dists/'))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_BUILD_PATH, "app/build/outputs/apk/")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_PUSH_PATH, "/system/priv-app/")
 
@@ -116,6 +117,7 @@ def init_project():
 
 
 def init_remote(device_id):
+    global apk_install_path
     if config.has_option(CFG_SECTION_LOCAL, CFG_OPTION_APK_INSTALL_PATH):
         paths = eval(config.get(CFG_SECTION_LOCAL, CFG_OPTION_APK_INSTALL_PATH))
         if device_id not in paths.keys():
@@ -269,7 +271,7 @@ def find_install_path(device_id):
     result = os.popen(cmd).read()
     for l in result.splitlines():
         if config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME) in l:
-            return l
+            return os.path.join(l, l + ".apk")
 
 
 def install_apk(device_id, apk_path, is_debug):
@@ -279,12 +281,7 @@ def install_apk(device_id, apk_path, is_debug):
     else:
         install_apk_path = apk_path
 
-    install_file_path = find_install_path(device_id)
-    install_file_name = install_file_path + '.apk'
-
-    push_path = os.path.join(config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APK_PUSH_PATH), install_file_path,
-                             install_file_name)
-    cmd = 'adb -s %s push %s %s' % (device_id, install_apk_path, push_path)
+    cmd = 'adb -s %s push %s %s' % (device_id, install_apk_path, apk_install_path)
     if 0 != os.system(cmd):
         exit_with_msg(4)
 
@@ -303,7 +300,7 @@ def restart_app(device_id):
 def find_gradle_path():
     cur_path = os.getcwd()
     try:
-        build_file = open(cur_path + '/gradle/wrapper/gradle-wrapper.properties', 'r')
+        build_file = open(os.path.join(cur_path, '/gradle/wrapper/gradle-wrapper.properties'), 'r')
 
         gradle_version = 'gradle-3.3-all'
         for line in build_file.readlines():
@@ -312,8 +309,8 @@ def find_gradle_path():
         logger.info('gradle version : ' + gradle_version)
         gradle_full_path = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH) + str(gradle_version)
         files = os.listdir(gradle_full_path)
-        if os.path.isdir(gradle_full_path + '/' + files[0]):
-            return gradle_full_path + '/' + files[0] + '/' + gradle_version[:-4] + '/bin/gradle'
+        if os.path.isdir(os.path.join(gradle_full_path, files[0])):
+            return os.path.join(gradle_full_path, files[0], gradle_version[:-4], '/bin/gradle')
         else:
             exit_with_msg(5)
     except IOError:
@@ -357,6 +354,7 @@ def main():
     init_logger()
     init_args()
     init_project()
+    init_remote()
     if args.test:
         test()
         exit(0)
