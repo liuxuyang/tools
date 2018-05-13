@@ -1,6 +1,5 @@
 import os
 import sys
-import re
 import subprocess
 import time
 import logging
@@ -17,6 +16,7 @@ CFG_OPTION_PROJECT_NAME = "PROJECT_NAME"
 CFG_OPTION_APP_NAME = "APP_NAME"
 CFG_OPTION_CONFIG_PATH = "CONFIG_PATH"
 CFG_OPTION_LOG_PATH = "LOG_PATH"
+CFG_OPTION_MONKEY_LOG_PATH = "MONKEY_LOG_PATH"
 CFG_OPTION_GRADLE_PATH = "GRADLE_PATH"
 CFG_OPTION_APK_BUILD_PATH = "APK_BUILD_PATH"
 CFG_OPTION_APK_PUSH_PATH = "APK_PUSH_PATH"
@@ -53,6 +53,7 @@ def init_config():
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME, "ApeCamera")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_CONFIG_PATH, cfg_path)
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH, os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
+        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH, os.path.join(os.environ['HOME'], ".log/monkey"))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH,
                    os.path.join(os.environ['HOME'], '/.gradle/wrapper/dists/'))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_BUILD_PATH, "app/build/outputs/apk/")
@@ -87,9 +88,14 @@ def init_args():
     global args
     parse = argparse.ArgumentParser()
 
-    parse.add_argument("-v", "--version", version=get_version(), action="version", help="prints the version number")
+    commend_group = parse.add_argument_group(title="commend")
+    commend_group.add_argument("-v", "--version", version=get_version(), action="version",
+                               help="prints the version number")
+    commend_group.add_argument("-s", dest="device_id", help="install app")
+    commend_group.add_argument("-d", "--debug", action="store_true", default=False, help="run with debug app")
+    commend_group.add_argument("-t", "--test", dest="test", action="store_true", default=False, help="test")
 
-    build_group = parse.add_mutually_exclusive_group()
+    build_group = parse.add_argument_group(title="build/install").add_mutually_exclusive_group()
     build_group.add_argument("-b", "--build", dest="build_path", type=str, help="build app")
     build_group.add_argument("-c", "--choose", dest="build_path_index", action="store_true", default=False,
                              help="choose project path in cache")
@@ -97,9 +103,11 @@ def init_args():
                              help="not build app ,just run with pre-build app")
     build_group.add_argument("-i", "--install", dest="app_path", type=str, help="install app")
 
-    parse.add_argument("-s", dest="device_id", help="install app")
-    parse.add_argument("-d", "--debug", action="store_true", default=False, help="run with debug app")
-    parse.add_argument("-t", "--test", dest="test", action="store_true", default=False, help="test")
+    monkey_group = parse.add_argument_group(title="monkey")
+    monkey_group.add_argument("-m", "--monkey", dest="monkey", action="store_false", help="run monkey")
+    monkey_group.add_argument("-o", "--monkey-options", dest="monkey_options",
+                              default="monkey_options", help="specified monkey options")
+
     args = parse.parse_args()
 
 
@@ -317,6 +325,81 @@ def find_gradle_path():
         exit_with_msg(5)
 
 
+def build_monkey_log(device_id):
+    log_root = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH)
+    date_str = time.strftime("%y%m%d")
+    time_str = time.strftime("%H%M%S")
+    main_log = os.path.join(log_root, date_str, "logcat_%s_%s.log" % (device_id, time_str))
+    monkey_log = os.path.join(log_root, date_str, "monkey_%s_%s.log" % (device_id, time_str))
+    return main_log, monkey_log
+
+
+def monkey():
+    proc_info = dict()
+    for device_id in get_device_id():
+        logcat_log, monkey_log = build_monkey_log(device_id)
+        proc_info[device_id] = [run_logcat(device_id, monkey_log), run_monkey(device_id, logcat_log)]
+    wait_monkey_stop(proc_info)
+    exit_with_msg(0)
+
+
+def wait_monkey_stop(proc_info):
+    print("now there are %s devices run monkey,they are %s" % (len(proc_info.keys()), proc_info.keys()))
+    input_str = raw_input("input q <id> to quit a specify device or quit all tasks without specified id :\n")
+
+    def stop():
+        procs = proc_info.pop(device_id)
+        # stop logging
+        procs[0].kill()
+        # stop monkey logging
+        procs[1].kill()
+        # stop monkey
+        stop_monkey(device_id)
+
+    if input_str.startswith("q"):
+        if len(input_str) > 2:
+            device_id = input_str[2:]
+            if device_id in proc_info.keys():
+                stop()
+            else:
+                print("you should input id which in %s " % proc_info.keys())
+        else:
+            for device_id in proc_info.keys():
+                stop()
+
+    if len(proc_info.keys()) != 0:
+        wait_monkey_stop(proc_info)
+
+
+def stop_monkey(device_id):
+    # stop monkey on specify device
+    cmd = "adb -s %s shell ps | awk '/com\.android\.commands\.monkey/ { system(\"adb -s %s shell kill \" $2) }'" % (
+        device_id, device_id)
+    logging.debug("stop monkey : %s " % cmd)
+    if 0 != os.system(cmd):
+        exit_with_msg("stop monkey fail")
+
+
+def run_monkey(device_id, log):
+    option = ""
+    count = 10000
+    if args.monkey_option is not None:
+        option = args.monkey_option
+    command = "adb -s %s shell %s %s" % (device_id, option, count)
+    log_file = open(log, 'wb')
+    proc = subprocess.Popen(command.split(), stdout=log_file, stderr=log_file)
+    logger.info("start monkey pid : %s for device : %s, and log save at %s" % (proc.pid, device_id, log))
+    return proc
+
+
+def run_logcat(device_id, log):
+    command = "adb -s %s logcat"
+    log_file = open(log, 'wb')
+    proc = subprocess.Popen(command.split(), stdout=log_file, stderr=log_file)
+    logger.info("start logcat pid : %s for device : %s, and log save at %s" % (proc.pid, device_id, log))
+    return proc
+
+
 def exit_with_msg(sign):
     if sign >= len(EXIT_MSG):
         logger.critical(INVALID_SIGN_MSG)
@@ -354,12 +437,13 @@ def main():
     init_logger()
     init_args()
     init_project()
-    init_remote()
     if args.test:
         test()
         exit(0)
-
+    if args.monkey:
+        monkey()
     for device_id in get_device_id():
+        init_remote(device_id)
         if args.app_path is not None:
             root_devices(device_id)
             remount_devices(device_id)
