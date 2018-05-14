@@ -14,6 +14,7 @@ CFG_SECTION_GLOBAL = 'global'
 
 CFG_OPTION_PROJECT_NAME = "PROJECT_NAME"
 CFG_OPTION_APP_NAME = "APP_NAME"
+CFG_OPTION_APP_PKG_NAME = "APP_PKG_NAME"
 CFG_OPTION_CONFIG_PATH = "CONFIG_PATH"
 CFG_OPTION_LOG_PATH = "LOG_PATH"
 CFG_OPTION_MONKEY_LOG_PATH = "MONKEY_LOG_PATH"
@@ -51,6 +52,7 @@ def init_config():
 
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_PROJECT_NAME, "CAM_DEBUG_TOOL")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME, "ApeCamera")
+        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME, "com.myos.camera")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_CONFIG_PATH, cfg_path)
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH, os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH, os.path.join(os.environ['HOME'], ".log/monkey"))
@@ -105,14 +107,14 @@ def init_args():
 
     monkey_group = parse.add_argument_group(title="monkey")
     monkey_group.add_argument("-m", "--monkey", dest="monkey", action="store_true", help="run monkey")
-    monkey_group.add_argument("-o", "--monkey-options", dest="monkey_options",
-                              default="monkey_options", help="specified monkey options")
+    monkey_group.add_argument("-o", "--monkey-options", dest="monkey_options", help="specified monkey options")
 
     args = parse.parse_args()
 
 
 def init_project():
     global project_path
+    global pkg_name
     if args.build_path is not None:
         project_path = args.build_path
         add_to_path_cache(project_path)
@@ -120,6 +122,8 @@ def init_project():
         project_path = choose_project_path()
     else:
         project_path = None
+
+    pkg_name = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME)
 
 
 def init_remote(device_id):
@@ -270,7 +274,7 @@ def find_apk_path(cur_project_path, is_debug):
         else:
             release_file = name
 
-    return release_file if is_debug else debug_file
+    return release_file if not is_debug else debug_file
 
 
 def find_install_path(device_id):
@@ -337,6 +341,9 @@ def build_monkey_log(device_id):
     log_root = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH)
     date_str = time.strftime("%y%m%d")
     time_str = time.strftime("%H%M%S")
+    log_path = os.path.join(log_root, date_str)
+    if not os.path.exists(log_path):
+        os.makedirs(log_path)
     main_log = os.path.join(log_root, date_str, "logcat_%s_%s.log" % (device_id, time_str))
     monkey_log = os.path.join(log_root, date_str, "monkey_%s_%s.log" % (device_id, time_str))
     return main_log, monkey_log
@@ -345,8 +352,9 @@ def build_monkey_log(device_id):
 def monkey():
     proc_info = dict()
     for device_id in get_device_id():
+        per_run_monkey(device_id)
         logcat_log, monkey_log = build_monkey_log(device_id)
-        proc_info[device_id] = [run_logcat(device_id, monkey_log), run_monkey(device_id, logcat_log)]
+        proc_info[device_id] = [run_logcat(device_id, logcat_log), run_monkey(device_id, monkey_log)]
     wait_monkey_stop(proc_info)
     exit_with_msg(0)
 
@@ -389,10 +397,14 @@ def stop_monkey(device_id):
 
 
 def run_monkey(device_id, log):
-    option = ""
-    count = 10000
-    if args.monkey_option is not None:
-        option = args.monkey_option
+    count = 5000000
+    option = "monkey --pct-touch 50 --pct-motion 15 --pct-anyevent 5 --pct-majornav 12 --pct-trackball 1 --pct-nav 0 " \
+             "--pct-syskeys 15 --pct-appswitch 2 --throttle 200 -p %s -s 500 " \
+             "--ignore-security-exceptions --ignore-crashes --ignore-timeouts --ignore-native-crashes -v -v %d " \
+             % (pkg_name, count)
+
+    if args.monkey_options is not None:
+        option = args.monkey_options
     command = "adb -s %s shell %s %s" % (device_id, option, count)
     log_file = open(log, 'wb')
     proc = subprocess.Popen(command.split(), stdout=log_file, stderr=log_file)
@@ -400,14 +412,17 @@ def run_monkey(device_id, log):
     return proc
 
 
-def run_logcat(device_id, log):
+def per_run_monkey(device_id):
     logcat_size = '16M'
     set_logcat_size = "adb -s %s logcat -G %s" % (device_id, logcat_size)
-    clean_logcat = "adb -s %s logcat -c" % device_id
+    proc = subprocess.Popen(set_logcat_size.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc.communicate()
+
+
+def run_logcat(device_id, log):
     logging_command = "adb -s %s logcat" % device_id
-    command = "%s && %s && %s" % (set_logcat_size, clean_logcat, logging_command)
     log_file = open(log, 'wb')
-    proc = subprocess.Popen(command.split(), stdout=log_file, stderr=log_file)
+    proc = subprocess.Popen(logging_command.split(), stdout=log_file, stderr=log_file)
     logger.info("start logcat pid : %s for device : %s, and log save at %s" % (proc.pid, device_id, log))
     return proc
 
