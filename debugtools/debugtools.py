@@ -32,7 +32,7 @@ EXIT_MSG = [
     "Devices need remount",  # 2
     "Build fail",  # 3
     "Apk install fail",  # 4
-    "Path error,please run this script on project root path",  # 5
+    "Project path error",  # 5
     "App restart fail",  # 6
     "App restart fail",  # 7
     "Args invalid",  # 8
@@ -55,9 +55,9 @@ def init_config():
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH, os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH, os.path.join(os.environ['HOME'], ".log/monkey"))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH,
-                   os.path.join(os.environ['HOME'], '/.gradle/wrapper/dists/'))
+                   os.path.join(os.environ['HOME'], '.gradle/wrapper/dists/'))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_BUILD_PATH, "app/build/outputs/apk/")
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_PUSH_PATH, "/system/priv-app/")
+        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_PUSH_PATH, "system/priv-app/")
 
         config.add_section(CFG_SECTION_LOCAL)
         with open(cfg_path, 'wb') as configfile:
@@ -99,12 +99,12 @@ def init_args():
     build_group.add_argument("-b", "--build", dest="build_path", type=str, help="build app")
     build_group.add_argument("-c", "--choose", dest="build_path_index", action="store_true", default=False,
                              help="choose project path in cache")
-    build_group.add_argument("-n", "--no-build", dest="no_build", action="store_true", default=False,
+    build_group.add_argument("-n", "--no-build", dest="build", action="store_false", default=True,
                              help="not build app ,just run with pre-build app")
     build_group.add_argument("-i", "--install", dest="app_path", type=str, help="install app")
 
     monkey_group = parse.add_argument_group(title="monkey")
-    monkey_group.add_argument("-m", "--monkey", dest="monkey", action="store_false", help="run monkey")
+    monkey_group.add_argument("-m", "--monkey", dest="monkey", action="store_true", help="run monkey")
     monkey_group.add_argument("-o", "--monkey-options", dest="monkey_options",
                               default="monkey_options", help="specified monkey options")
 
@@ -116,9 +116,7 @@ def init_project():
     if args.build_path is not None:
         project_path = args.build_path
         add_to_path_cache(project_path)
-    elif args.build_path_index is not None:
-        project_path = choose_project_path()
-    elif args.no_build:
+    elif args.build_path_index or not args.build:
         project_path = choose_project_path()
     else:
         project_path = None
@@ -143,11 +141,8 @@ def choose_project_path():
         logging.error("there is no cache yet")
         return None
     project_path_dict = eval(config.get(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH))
-    if not args.no_build:
-        print_project_path_cache(project_path_dict)
-        project_path_index = int(raw_input("pls input project index:"))
-    else:
-        project_path_index = 0
+    print_project_path_cache(project_path_dict)
+    project_path_index = int(raw_input("pls input project index:"))
     if project_path_index is None or len(project_path_dict) == 0:
         sys.exit("there is no cache yet,pls use [-b path]")
     elif 0 > project_path_index or project_path_index >= len(project_path_dict):
@@ -169,7 +164,7 @@ def add_to_path_cache(path):
     else:
         logger.warn("add a none path to cache")
         return
-    config.set(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH, cache)
+    config.set(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH, str(cache))
     save_config()
 
 
@@ -185,7 +180,7 @@ def update_config(section, option, key, value):
     else:
         logger.warn("add a none path to cache")
         return
-    config.set(section, option, value)
+    config.set(section, option, str(cache))
     save_config()
 
 
@@ -202,7 +197,7 @@ def get_device_id():
     if len(devices) == 0:
         sys.exit("No device is connected!")
     elif args.device_id is not None and args.device_id not in devices:
-        sys.exit("%s is connected!" % args.device_id)
+        sys.exit("%s is not connected!" % args.device_id)
     elif args.device_id is not None:
         return [args.device_id]
     else:
@@ -245,10 +240,14 @@ def remount_devices(device_id):
 
 
 def build_apk():
+    logger.info("start build")
+    start_time = time.time()
     if not go2project_dir():
         exit_with_msg(5)
     if 0 != os.system("%s build" % find_gradle_path()):
         exit_with_msg(3)
+    duration = time.time() - start_time
+    logger.info("end! duration : %s" % duration)
 
 
 def find_apk_path(cur_project_path, is_debug):
@@ -279,7 +278,16 @@ def find_install_path(device_id):
     result = os.popen(cmd).read()
     for l in result.splitlines():
         if config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME) in l:
-            return os.path.join(l, l + ".apk")
+            return os.path.join("/system/priv-app/", l, l + ".apk")
+
+
+def install():
+    for device_id in get_device_id():
+        init_remote(device_id)
+        root_devices(device_id)
+        remount_devices(device_id)
+        install_apk(device_id, args.app_path, args.debug)
+        restart_app(device_id)
 
 
 def install_apk(device_id, apk_path, is_debug):
@@ -306,9 +314,8 @@ def restart_app(device_id):
 
 
 def find_gradle_path():
-    cur_path = os.getcwd()
     try:
-        build_file = open(os.path.join(cur_path, '/gradle/wrapper/gradle-wrapper.properties'), 'r')
+        build_file = open(os.path.join(project_path, 'gradle/wrapper/gradle-wrapper.properties'), 'r')
 
         gradle_version = 'gradle-3.3-all'
         for line in build_file.readlines():
@@ -318,10 +325,11 @@ def find_gradle_path():
         gradle_full_path = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH) + str(gradle_version)
         files = os.listdir(gradle_full_path)
         if os.path.isdir(os.path.join(gradle_full_path, files[0])):
-            return os.path.join(gradle_full_path, files[0], gradle_version[:-4], '/bin/gradle')
+            return os.path.join(gradle_full_path, files[0], gradle_version[:-4], 'bin/gradle')
         else:
             exit_with_msg(5)
-    except IOError:
+    except IOError, e:
+        logger.error(e.message)
         exit_with_msg(5)
 
 
@@ -393,7 +401,11 @@ def run_monkey(device_id, log):
 
 
 def run_logcat(device_id, log):
-    command = "adb -s %s logcat"
+    logcat_size = '16M'
+    set_logcat_size = "adb -s %s logcat -G %s" % (device_id, logcat_size)
+    clean_logcat = "adb -s %s logcat -c" % device_id
+    logging_command = "adb -s %s logcat" % device_id
+    command = "%s && %s && %s" % (set_logcat_size, clean_logcat, logging_command)
     log_file = open(log, 'wb')
     proc = subprocess.Popen(command.split(), stdout=log_file, stderr=log_file)
     logger.info("start logcat pid : %s for device : %s, and log save at %s" % (proc.pid, device_id, log))
@@ -439,29 +451,13 @@ def main():
     init_project()
     if args.test:
         test()
-        exit(0)
-    if args.monkey:
+    elif args.monkey:
         monkey()
-    for device_id in get_device_id():
-        init_remote(device_id)
-        if args.app_path is not None:
-            root_devices(device_id)
-            remount_devices(device_id)
-            install_apk(device_id, args.app_path, args.debug)
-            restart_app(device_id)
-            exit_with_msg(0)
-        else:
-            start_time = time.time()
-            root_devices(device_id)
-            remount_devices(device_id)
-            if not args.no_build:
-                logger.info("start build")
-                build_apk()
-            install_apk(device_id, None, args.debug)
-            restart_app(device_id)
-            duration = time.time() - start_time
-            logger.info("end! duration : %s" % duration)
-            exit_with_msg(0)
+    elif args.build and args.app_path is None:
+        build_apk()
+        install()
+    else:
+        install()
 
 
 if __name__ == '__main__':
