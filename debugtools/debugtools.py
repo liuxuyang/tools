@@ -124,8 +124,10 @@ def init_project():
 
     if check_project_path(project_path):
         add_to_path_cache(project_path)
+    elif args.app_path is not None:
+        pass
     else:
-        logger.error("Invalid path : %s")
+        logger.error("Invalid path : %s" % project_path)
         exit_with_msg(5)
     pkg_name = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME)
 
