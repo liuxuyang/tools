@@ -117,12 +117,16 @@ def init_project():
     global pkg_name
     if args.build_path is not None:
         project_path = args.build_path
-        add_to_path_cache(project_path)
     elif args.build_path_index or not args.build:
         project_path = choose_project_path()
     else:
-        project_path = None
+        project_path = os.getcwd()
 
+    if check_project_path(project_path):
+        add_to_path_cache(project_path)
+    else:
+        logger.error("Invalid path : %s")
+        exit_with_msg(5)
     pkg_name = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME)
 
 
@@ -170,6 +174,14 @@ def add_to_path_cache(path):
         return
     config.set(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH, str(cache))
     save_config()
+
+
+def check_project_path(path):
+    if path is None:
+        return False
+    else:
+        # rough check
+        return "build.gradle" in os.listdir(path)
 
 
 def update_config(section, option, key, value):
@@ -438,7 +450,7 @@ def exit_with_msg(sign):
 
 
 def go2project_dir():
-    logger.info(project_path)
+    logger.info("project path : %s" % project_path)
     if project_path is not None:
         os.chdir(project_path)
         return True
