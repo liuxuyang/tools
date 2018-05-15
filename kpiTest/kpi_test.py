@@ -1,3 +1,4 @@
+import json
 import time
 
 from tool.devices import Device
@@ -29,7 +30,7 @@ def main():
                 app : this is a app log
                 hal : this is a hal log
 
-        -t,--test <OPTION> [<number>] [<result_path>]: Auto test a specified number of times.
+        -r,--run <OPTION> [<number>] [<result_path>]: Auto test a specified number of times.
             OPTION:
                 c:test capture
                 o:open and close camera
@@ -57,7 +58,7 @@ def main():
                 return
             log_path = sys.argv[2]
             analyze_log(log_path, log_type, filename)
-        elif option in ["-t", "--test"]:
+        elif option in ["-r", "--run"]:
             test_number = 10
             filename = "temp"
             if len(sys.argv) >= 5:
@@ -74,13 +75,16 @@ def main():
             test_option = sys.argv[2]
             test_number = check_int(test_number)
             if "c" == test_option:
-                test_capture(filename)
+                # test_capture(filename)
+                test_capture_new(filename)
             elif "o" == test_option:
                 test_open_close(test_number, filename)
             elif "s" == test_option:
                 test_switch_camera(test_number, filename)
             else:
                 auto_test(test_number, filename)
+        elif option in ["-t"]:
+            test()
         else:
             print("Invalid arguments")
     else:
@@ -142,6 +146,24 @@ def test_capture(filename):
     write_data(interpreter, save_path, device)
 
 
+def test_capture_new(filename):
+    save_path = generate_result_file_path(filename)
+    log("test capture and save to %s" % save_path)
+
+    device = Device()
+    interpreter = LogInterpreter(device)
+
+    log_path = device.test_capture_new()
+    print("log : %s" % log_path)
+
+    interpreter.read_log(log_path)
+    interpreter.analysis_app_log()
+    interpreter.analysis_hal_log()
+
+    log(json.dumps(interpreter.get_result()))
+    # write_data(interpreter, save_path, device)
+
+
 def test_open_close(test_number, filename):
     save_path = generate_result_file_path(filename)
     log("test open&close camera and save to %s" % save_path)
@@ -153,6 +175,7 @@ def test_open_close(test_number, filename):
     if log_path:
         interpreter.read_log(log_path)
         interpreter.analysis_app_log()
+        interpreter.analysis_hal_log()
 
         write_data(interpreter, save_path, device)
 
@@ -186,6 +209,26 @@ def auto_test(number, filename):
     interpreter.analysis_app_log()
 
     write_data(interpreter, save_path, device)
+
+
+def test():
+    save_path = generate_result_file_path("test")
+    log("test capture and save to %s" % save_path)
+
+    device = Device()
+    device.decode('{"platform":"qcom","system_version":"W_C800-V01.49.OPE.20-[OREO-8.0]-GBL","sdk_version":"26",'
+                  '"app_version":"8.0.50.20","app_pid":"14135","hal_pid":"855","fwk_pid":"825"}')
+    interpreter = LogInterpreter(device)
+
+    # log_path = device.test_capture_new()
+    log_path = '/home/liuxuyang/Kpi/log/kpi_log_2018_01_26_19_05_25.log'
+    print("app log : %s" % log_path)
+
+    interpreter.read_log(log_path)
+    interpreter.analysis_app_log()
+    interpreter.analysis_hal_log()
+
+    log(json.dumps(interpreter.get_result()))
 
 
 if __name__ == "__main__":

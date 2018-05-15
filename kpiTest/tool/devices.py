@@ -6,7 +6,7 @@ import time
 from config import Config
 from data.mode_tag import get_actions
 from error import Error
-from util import log, generate_log_path, LOG_TYPE_APP, LOG_TYPE_HAL, print_progress
+from util import log, generate_log_path, LOG_TYPE_APP, LOG_TYPE_HAL, print_progress, LOG_TYPE_ALL
 import sys
 import unittest
 
@@ -108,28 +108,51 @@ def get_app_version():
         raise Error("get app version fail")
 
 
-def get_hal_pid(sdk_version):
-    if sdk_version >= 26:
-        filter_tag = "android.hardware.camera.provider"
-    else:
-        filter_tag = "cameraserver"
+def get_pid(sdk_version):
+    app_pid = None
+    fwk_pid = None
+    hal_pid = None
+
+    camera_server = "cameraserver"
+    hal_tag_for_android_o = "android.hardware.camera.provider"
+    filter_tag = "camera"
     command = "adb shell ps | grep %s" % filter_tag
-    output, error = run_adb_task(command)
-    if len(output.strip().split(os.linesep)) == 1:
-        split_pattern = re.compile(r"\s+")
-        return split_pattern.split(output)[1]
-    else:
-        raise Error("get app pid fail")
 
-
-def get_app_pid():
-    command = "adb shell ps | grep %s" % pkg_name
+    split_pattern = re.compile(r"\s+")
     output, error = run_adb_task(command)
-    if len(output.strip().split(os.linesep)) == 1:
-        split_pattern = re.compile(r"\s+")
-        return split_pattern.split(output)[1]
-    else:
-        raise Error("get app pid fail")
+
+    for line in output.strip().split(os.linesep):
+        if pkg_name in line:
+            if app_pid is None:
+                app_pid = split_pattern.split(line)[1]
+            else:
+                raise Error("get app pid fail, too many pid find")
+        elif camera_server in line:
+            if sdk_version >= 26:
+                if line.startswith(camera_server) and line.endswith(camera_server):
+                    if fwk_pid is None:
+                        fwk_pid = split_pattern.split(line)[1]
+                    else:
+                        raise Error("get fwk pid fail, too many pid find")
+                elif hal_tag_for_android_o in line:
+                    if hal_pid is None:
+                        hal_pid = split_pattern.split(line)[1]
+                    else:
+                        raise Error("get hal pid fail, too many pid find")
+            else:
+                if line.startswith(camera_server) and line.endswith(camera_server):
+                    if hal_pid is None:
+                        hal_pid = split_pattern.split(line)[1]
+                    else:
+                        raise Error("get hal pid fail, too many pid find")
+
+    if app_pid is None:
+        raise Error("get app pid fail!")
+    if sdk_version >= 26 and fwk_pid is None:
+        raise Error("get fwk pid fail!")
+    if hal_pid is None:
+        raise Error("get hal pid fail!")
+    return app_pid, fwk_pid, hal_pid
 
 
 def root_device():
@@ -313,6 +336,16 @@ def prepare_logcat(pid, log_file):
     return proc
 
 
+def prepare_log(device, log_file):
+    if device.sdk_version >= 26:
+        command = 'adb logcat | grep -iE " %s | %s | %s "' % (device.app_pid, device.fwk_pid, device.hal_pid)
+    else:
+        command = 'adb logcat | grep -iE " %s | %s "' % (device.app_pid, device.hal_pid)
+    log(command)
+    proc = subprocess.Popen(command, stdout=log_file,shell=True)
+    return proc
+
+
 def clear_logcat():
     clear_command = "adb logcat -c"
     os.system(clear_command)
@@ -327,8 +360,7 @@ class Device:
                 self.sdk_version = get_sdk_version()
                 self.app_version = get_app_version()
                 open_camera_cold()
-                self.app_pid = get_app_pid()
-                self.hal_pid = get_hal_pid(self.sdk_version)
+                self.app_pid, self.fwk_pid, self.hal_pid = get_pid(self.sdk_version)
                 log(self.__str__())
         except Error, e:
             print(e.message)
@@ -341,12 +373,13 @@ class Device:
         self.app_version = msg_data["app_version"]
         self.app_pid = msg_data["app_pid"]
         self.hal_pid = msg_data["hal_pid"]
+        self.fwk_pid = msg_data["fwk_pid"]
         log(self.__str__())
 
     def __str__(self):
         return '{"platform":"%s","system_version":"%s","sdk_version":"%s","app_version":"%s","app_pid":"%s",' \
-               '"hal_pid":"%s"}' % (self.platform, self.system_version, self.sdk_version, self.app_version,
-                                    self.app_pid, self.hal_pid)
+               '"hal_pid":"%s","fwk_pid":"%s"}' % (self.platform, self.system_version, self.sdk_version,
+                                                   self.app_version, self.app_pid, self.hal_pid, self.fwk_pid)
 
     def auto_test(self, number=10):
         app_log = generate_log_path(LOG_TYPE_APP)
@@ -399,11 +432,33 @@ class Device:
         hal_log_file.close()
         return app_log_path, hal_log_path
 
-    def test_open_close(self, number):
-        log_path = generate_log_path(LOG_TYPE_APP)
+    def test_capture_new(self):
+        log_path = generate_log_path(LOG_TYPE_ALL)
+        clear_logcat()
         log_file = open(log_path, 'w')
-        pid = self.app_pid
-        proc = prepare_logcat(pid, log_file)
+        proc = prepare_log(self, log_file)
+
+        while True:
+            input_opt = str(raw_input("Please input option('c -n':capture n times , 'q':quit):"))
+            if input_opt.startswith("c"):
+                try:
+                    times = int(input_opt[input_opt.find("-") + 1:])
+                except Exception:
+                    times = 10
+                take_picture(times, 5000)
+            elif input_opt.startswith("q"):
+                print("Quit!")
+                break
+            else:
+                print("input error!")
+        proc.kill()
+        log_file.close()
+        return log_path
+
+    def test_open_close(self, number):
+        log_path = generate_log_path(LOG_TYPE_ALL)
+        log_file = open(log_path, 'w')
+        proc = prepare_log(self, log_file)
         for i in xrange(number):
             time.sleep(5)
             close_camera()

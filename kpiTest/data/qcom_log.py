@@ -25,11 +25,15 @@ class QcomHalLogBean(BaseLogBean):
 
     def __init__(self, line):
         BaseLogBean.__init__(self, line)
-
-        if self.is_kpi_log():
-            self.__msg_data = QcomMsgData(self.msg)
-        elif self.is_mode_log():
-            self.__msg_data = QcomModeData(self.msg)
+        if self.msg:
+            if self.is_kpi_log():
+                self.__msg_data = QcomMsgData(self.msg)
+            elif self.is_mode_log():
+                self.__msg_data = QcomModeData(self.msg)
+            elif self.is_algo_log():
+                self.__msg_data = QcomAlgoData(self.msg)
+            else:
+                self.__msg_data = None
         else:
             self.__msg_data = None
 
@@ -41,13 +45,16 @@ class QcomHalLogBean(BaseLogBean):
         return self.__msg_data
 
     def is_valid(self):
-        return self.is_mode_log() or self.is_kpi_log()
+        return self.is_mode_log() or self.is_kpi_log() or self.is_algo_log()
 
     def is_kpi_log(self):
-        return QcomMsgData.KEY_WORD in self.msg
+        return self.msg is not None and QcomMsgData.KEY_WORD in self.msg
 
     def is_mode_log(self):
-        return QcomModeData.KEY_WORD in self.msg
+        return self.msg is not None and QcomModeData.KEY_WORD in self.msg
+
+    def is_algo_log(self):
+        return self.msg is not None and QcomAlgoData.KEY_WORD in self.msg
 
 
 class QcomMsgData:
@@ -115,3 +122,28 @@ class QcomModeData:
 
     def get_method(self):
         return self.__method
+
+
+class QcomAlgoData:
+    KEY_WORD = "[KPI PERF]"
+    START_FLAG = "THIRD_PARTY_ALGO_START"
+    END_FLAG = "THIRD_PARTY_ALGO_STOP"
+
+    def __init__(self, msg):
+        if QcomAlgoData.KEY_WORD in msg and (QcomAlgoData.START_FLAG in msg or QcomAlgoData.END_FLAG in msg):
+            items = str(msg).split(" ")
+            self.__algo_type = items[-1].split(":")[1]
+            self.__algo_method = items[-1].split(":")[0]
+            self.__is_start = QcomAlgoData.START_FLAG in msg
+
+    def get_algo_type(self):
+        return self.__algo_type
+
+    def get_algo_method(self):
+        return self.__algo_method
+
+    def is_start(self):
+        return self.__is_start
+
+    def __str__(self):
+        return ""

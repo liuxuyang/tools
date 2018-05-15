@@ -1,3 +1,5 @@
+import json
+
 from tool.devices import PLATFORM_MTK
 from tool.devices import PLATFORM_QCOM
 from tool.util import *
@@ -23,6 +25,7 @@ class LogInterpreter:
         self.__platform = device.platform
         self.__hal_pid = device.hal_pid
         self.__app_pid = device.app_pid
+        self.__fwd_pid = device.fwk_pid
         self.__app_log = []
         self.__hal_log = []
         self.__result_data = {"hal": {}, "app": {}}
@@ -40,7 +43,15 @@ class LogInterpreter:
             for line in f:
                 if str(self.get_app_pid()) in line:
                     self.__app_log.append(AppLogBean(line))
-                elif str(self.get_hal_pid()) in line:
+                elif self.get_fwk_pid() is None:
+                    if str(self.get_hal_pid()) in line:
+                        if self.get_platform() == PLATFORM_QCOM:
+                            hal_log = QcomHalLogBean(line)
+                            if hal_log.is_valid():
+                                self.__hal_log.append(hal_log)
+                        elif self.get_platform() == PLATFORM_MTK:
+                            self.__hal_log.append(MtkHalLogBean(line))
+                elif str(self.get_hal_pid()) in line or str(self.get_fwk_pid()) in line:
                     if self.get_platform() == PLATFORM_QCOM:
                         hal_log = QcomHalLogBean(line)
                         if hal_log.is_valid():
@@ -56,6 +67,11 @@ class LogInterpreter:
     def get_hal_pid(self):
         return int(self.__hal_pid)
 
+    def get_fwk_pid(self):
+        if self.__fwd_pid is None:
+            return None
+        return int(self.__fwd_pid)
+
     def get_app_pid(self):
         return int(self.__app_pid)
 
@@ -64,7 +80,8 @@ class LogInterpreter:
 
     def analysis_hal_log(self):
         if self.is_qcom_platform():
-            self.__analysis_qcom_hal_log()
+            # self.__analysis_qcom_hal_log()
+            self.__analysis_qcom_hal_log_new()
         elif self.is_mtk_platform():
             self.__analysis_mtk_hal_log()
 
@@ -81,6 +98,55 @@ class LogInterpreter:
 
     def __analysis_mtk_hal_log(self):
         log("not support analysis mtk platform HAL data")
+
+    def __analysis_qcom_hal_log_new(self):
+        log("start new analysis qcom hal log , log : %s" % len(self.__hal_log))
+        index = 0
+        while index < len(self.__hal_log):
+            index += self.__match_log(self.__hal_log[index])
+        log("end new analysis qcom hal log , result data len : %s" % len(self.__result_data["hal"]))
+
+    def __match_log(self, target):
+        if target.is_kpi_log() and target.get_msg_data().is_method_start():
+            tag = target.get_msg_data().get_type()
+            end_tag = Config.find_end_tag(tag)
+            search_start = self.__hal_log.index(target) + 1
+            offset = self.__get_index(self.__hal_log[search_start:], tag)
+
+            if offset is None or offset == 0:
+                offset = 1
+                logs = self.__hal_log[search_start:]
+            else:
+                logs = self.__hal_log[search_start:search_start + offset]
+
+            mode, mode_method, algo_logs = None, None, []
+            for bean in logs:
+                if bean.is_mode_log():
+                    mode_method = bean.get_msg_data().get_method()
+                    if is_mode_method_valid(tag, mode_method):
+                        mode = bean.get_msg_data().get_mode()
+                elif bean.is_kpi_log():
+                    if bean.get_msg_data().is_method_end() and end_tag == bean.get_msg_data().get_type():
+                        option_duration = bean - target
+                        algo_data = {}
+                        if len(algo_logs) > 0 and len(algo_logs) % 2 ==0:
+                            for i in xrange(len(algo_logs)):
+                                if algo_logs[i].get_msg_data().is_start():
+                                    algo_data[algo_logs[i].get_msg_data().get_algo_method()] = algo_logs[i + 1] - algo_logs[i]
+                        self.__add_result_with_mode("hal", tag, mode, {option_duration: algo_data})
+                        return self.__hal_log.index(bean) - self.__hal_log.index(target) + 1
+                elif bean.is_algo_log():
+                    if len(algo_logs) == 0:
+                        algo_logs.append(bean)
+                    elif algo_logs[0].get_msg_data().get_algo_type() == bean.get_msg_data().get_algo_type():
+                        if len(algo_logs) % 2 == 0 and bean.get_msg_data().is_start():
+                            algo_logs.append(bean)
+                        elif len(algo_logs) % 2 == 1 and not bean.get_msg_data().is_start():
+                            algo_logs.append(bean)
+            return offset
+        else:
+            return 1
+
 
     def __analysis_qcom_hal_log(self):
         """
