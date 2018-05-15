@@ -6,7 +6,7 @@ import logging
 import argparse
 import ConfigParser
 
-version = "1.0.9"
+version = "1.1.0"
 
 CFG_PATH = 'config.cfg'
 
