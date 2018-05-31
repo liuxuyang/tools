@@ -377,28 +377,32 @@ def wait_monkey_stop(proc_info):
     print("now there are %s devices run monkey,they are %s" % (len(proc_info.keys()), proc_info.keys()))
     input_str = raw_input("input q <id> to quit a specify device or quit all tasks without specified id :\n")
 
-    def stop():
-        procs = proc_info.pop(device_id)
-        # stop logging
-        procs[0].kill()
-        # stop monkey logging
-        procs[1].kill()
-        # stop monkey
-        stop_monkey(device_id)
-
     if input_str.startswith("q"):
         if len(input_str) > 2:
             device_id = input_str[2:]
-            if device_id in proc_info.keys():
-                stop()
+            if device_id in proc_info.keys() and device_id in get_device_id():
+                procs = proc_info.pop(device_id)
+                stop(procs,procs)
             else:
                 print("you should input id which in %s " % proc_info.keys())
         else:
+            ids = get_device_id()
             for device_id in proc_info.keys():
-                stop()
+                procs = proc_info.pop(device_id)
+                if device_id in ids:
+                    stop(procs, device_id)
 
-    if len(proc_info.keys()) != 0:
+    if proc_info:
         wait_monkey_stop(proc_info)
+
+
+def stop(procs, device_id):
+    # stop logging
+    procs[0].kill()
+    # stop monkey logging
+    procs[1].kill()
+    # stop monkey
+    stop_monkey(device_id)
 
 
 def stop_monkey(device_id):
