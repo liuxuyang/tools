@@ -6,7 +6,7 @@ import logging
 import argparse
 import ConfigParser
 
-version = "1.1.0"
+version = "1.1.1"
 
 CFG_PATH = 'config.cfg'
 
@@ -15,7 +15,6 @@ CFG_SECTION_GLOBAL = 'global'
 CFG_OPTION_PROJECT_NAME = "PROJECT_NAME"
 CFG_OPTION_APP_NAME = "APP_NAME"
 CFG_OPTION_APP_PKG_NAME = "APP_PKG_NAME"
-CFG_OPTION_CONFIG_PATH = "CONFIG_PATH"
 CFG_OPTION_LOG_PATH = "LOG_PATH"
 CFG_OPTION_MONKEY_LOG_PATH = "MONKEY_LOG_PATH"
 CFG_OPTION_GRADLE_PATH = "GRADLE_PATH"
@@ -41,7 +40,7 @@ EXIT_MSG = [
 
 
 def init_config():
-    global config
+    global config, cfg_path
     config = ConfigParser.RawConfigParser()
     cur_path = os.path.split(os.path.realpath(__file__))[0]
     cfg_path = os.path.join(cur_path, CFG_PATH)
@@ -53,7 +52,6 @@ def init_config():
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_PROJECT_NAME, "CAM_DEBUG_TOOL")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME, "ApeCamera")
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME, "com.myos.camera")
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_CONFIG_PATH, cfg_path)
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH, os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH, os.path.join(os.environ['HOME'], ".log/monkey"))
         config.set(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH,
@@ -93,15 +91,18 @@ def init_args():
     commend_group = parse.add_argument_group(title="commend")
     commend_group.add_argument("-v", "--version", version=get_version(), action="version",
                                help="prints the version number")
-    commend_group.add_argument("-s", dest="device_id", help="install app")
+    commend_group.add_argument("-e", dest="device_id", help="install app")
     commend_group.add_argument("-d", "--debug", action="store_true", default=False, help="run with debug app")
     commend_group.add_argument("-t", "--test", dest="test", action="store_true", default=False, help="test")
+    commend_group.add_argument("-r", "--reset", dest="reset", action="store_true", default=False,
+                               help="reset tool's local config")
 
     build_group = parse.add_argument_group(title="build/install").add_mutually_exclusive_group()
     build_group.add_argument("-b", "--build", dest="build_path", type=str, help="build app")
-    build_group.add_argument("-c", "--choose", dest="build_path_index", action="store_true", default=False,
+    build_group.add_argument("-c", "--clean", dest="clean", action="store_true", default=False, help="run clean task")
+    build_group.add_argument("-s", "--select", dest="select_build_path", action="store_true", default=False,
                              help="choose project path in cache")
-    build_group.add_argument("-n", "--no-build", dest="build", action="store_false", default=True,
+    build_group.add_argument("-n", "--no-build", dest="no_build", action="store_false", default=True,
                              help="not build app ,just run with pre-build app")
     build_group.add_argument("-i", "--install", dest="app_path", type=str, help="install app")
 
@@ -115,10 +116,14 @@ def init_args():
 def init_project():
     global project_path
     global pkg_name
-    if args.build_path is not None:
+    if args.build_path:
         project_path = args.build_path
-    elif args.build_path_index or not args.build:
+    elif args.select_build_path:
         project_path = choose_project_path()
+    elif not args.no_build:
+        project_path = choose_project_path()
+    elif args.clean:
+        project_path = os.getcwd()
     else:
         project_path = os.getcwd()
 
@@ -202,6 +207,18 @@ def update_config(section, option, key, value):
     save_config()
 
 
+def reset_config(section):
+    if config.remove_section(section):
+        logger.info("reset %s config successful!" % section)
+        save_config()
+    else:
+        logger.info("reset %s config fail!" % section)
+
+
+def reset_local_config():
+    reset_config(CFG_SECTION_LOCAL)
+
+
 def get_device_id():
     # Get a list of connected devices
     devices = []
@@ -229,7 +246,6 @@ def get_key(section, option):
 
 
 def save_config():
-    cfg_path = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_CONFIG_PATH)
     with open(cfg_path, 'wb') as configfile:
         config.write(configfile)
 
@@ -255,6 +271,17 @@ def root_devices(device_id):
 def remount_devices(device_id):
     if 0 != os.system('adb -s %s remount' % device_id):
         exit_with_msg(2)
+
+
+def clean():
+    logger.info("clean project build")
+    start_time = time.time()
+    if not go2project_dir():
+        exit_with_msg(5)
+    if 0 != os.system("%s clean" % find_gradle_path()):
+        exit_with_msg(3)
+    duration = time.time() - start_time
+    logger.info("end! duration : %s" % duration)
 
 
 def build_apk():
@@ -382,7 +409,7 @@ def wait_monkey_stop(proc_info):
             device_id = input_str[2:]
             if device_id in proc_info.keys() and device_id in get_device_id():
                 procs = proc_info.pop(device_id)
-                stop(procs,procs)
+                stop(procs, procs)
             else:
                 print("you should input id which in %s " % proc_info.keys())
         else:
@@ -481,16 +508,22 @@ def main():
     init_config()
     init_logger()
     init_args()
-    init_project()
     if args.test:
         test()
-    elif args.monkey:
+    elif args.reset:
+        reset_local_config()
+    elif args.monkey or args.monkey_options:
         monkey()
-    elif args.build and args.app_path is None:
-        build_apk()
-        install()
     else:
-        install()
+        # project option
+        init_project()
+        if args.clean:
+            clean()
+        elif args.no_build and args.app_path is None:
+            build_apk()
+            install()
+        else:
+            install()
 
 
 if __name__ == '__main__':
