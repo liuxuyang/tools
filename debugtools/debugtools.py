@@ -6,25 +6,32 @@ import logging
 import argparse
 import ConfigParser
 
-version = "1.1.1"
-
+# version code
+version = "1.2.0"
+# config file name
 CFG_PATH = 'config.cfg'
-
+# section tags
 CFG_SECTION_GLOBAL = 'global'
+CFG_SECTION_DEVICES_PREFIX = 'device_'
+CFG_SECTION_PROJECT_PREFIX = 'project_'
+# global options
+GLOBAL_OPTION_PROJECT_NAME = "PROJECT_NAME"
+GLOBAL_OPTION_APP_NAME = "APP_NAME"
+GLOBAL_OPTION_APP_PKG_NAME = "APP_PKG_NAME"
+GLOBAL_OPTION_LOG_PATH = "LOG_PATH"
+GLOBAL_OPTION_MONKEY_LOG_PATH = "MONKEY_LOG_PATH"
+GLOBAL_OPTION_APK_BUILD_PATH = "APK_BUILD_PATH"
+GLOBAL_OPTION_APK_PUSH_PATH = "APK_PUSH_PATH"
+# devices options
+DEV_OPTION_APK_INSTALL_PATH = "APK_INSTALL_PATH"
+# projects options
+PJT_OPTION_PROJECT_PATH = "PROJECT_PATH"
+PJT_OPTION_PRODUCT_FLAVORS = "PRODUCT_FLAVORS"
 
-CFG_OPTION_PROJECT_NAME = "PROJECT_NAME"
-CFG_OPTION_APP_NAME = "APP_NAME"
-CFG_OPTION_APP_PKG_NAME = "APP_PKG_NAME"
-CFG_OPTION_LOG_PATH = "LOG_PATH"
-CFG_OPTION_MONKEY_LOG_PATH = "MONKEY_LOG_PATH"
-CFG_OPTION_GRADLE_PATH = "GRADLE_PATH"
-CFG_OPTION_APK_BUILD_PATH = "APK_BUILD_PATH"
-CFG_OPTION_APK_PUSH_PATH = "APK_PUSH_PATH"
+#
+CONFIG_SEP = ','
 
-CFG_SECTION_LOCAL = 'local'
-CFG_OPTION_PROJECT_PATH = "PROJECT_PATH"
-CFG_OPTION_APK_INSTALL_PATH = "APK_INSTALL_PATH"
-
+# error msg
 INVALID_SIGN_MSG = "Internal error : invalid sign"
 EXIT_MSG = [
     "Normal",  # 0
@@ -34,7 +41,7 @@ EXIT_MSG = [
     "Apk install fail",  # 4
     "Project path error",  # 5
     "App restart fail",  # 6
-    "App restart fail",  # 7
+    "App path error",  # 7
     "Args invalid",  # 8
 ]
 
@@ -49,29 +56,27 @@ def init_config():
     else:
         config.add_section(CFG_SECTION_GLOBAL)
 
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_PROJECT_NAME, "CAM_DEBUG_TOOL")
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME, "ApeCamera")
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME, "com.myos.camera")
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH, os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH, os.path.join(os.environ['HOME'], ".log/monkey"))
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH,
-                   os.path.join(os.environ['HOME'], '.gradle/wrapper/dists/'))
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_BUILD_PATH, "app/build/outputs/apk/")
-        config.set(CFG_SECTION_GLOBAL, CFG_OPTION_APK_PUSH_PATH, "system/priv-app/")
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_PROJECT_NAME, "CAM_DEBUG_TOOL")
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APP_NAME, "ApeCamera")
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APP_PKG_NAME, "com.myos.camera")
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_LOG_PATH,
+                   os.path.join(os.environ['HOME'], ".log/camera_debug_tool"))
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_MONKEY_LOG_PATH, os.path.join(os.environ['HOME'], ".log/monkey"))
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APK_BUILD_PATH, "app/build/outputs/apk/")
+        config.set(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APK_PUSH_PATH, "system/priv-app/")
 
-        config.add_section(CFG_SECTION_LOCAL)
         with open(cfg_path, 'wb') as configfile:
             config.write(configfile)
 
 
 def init_logger():
     global logger
-    logger = logging.getLogger(config.get(CFG_SECTION_GLOBAL, CFG_OPTION_PROJECT_NAME))
+    logger = logging.getLogger(config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_PROJECT_NAME))
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s: %(message)s')
 
-    if not os.path.exists(config.get(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH)):
-        os.makedirs(config.get(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH))
-    log_path = os.path.join(config.get(CFG_SECTION_GLOBAL, CFG_OPTION_LOG_PATH), "log")
+    if not os.path.exists(config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_LOG_PATH)):
+        os.makedirs(config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_LOG_PATH))
+    log_path = os.path.join(config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_LOG_PATH), "log")
     file_handler = logging.FileHandler(log_path)
     file_handler.setFormatter(formatter)
 
@@ -89,97 +94,117 @@ def init_args():
     parse = argparse.ArgumentParser()
 
     commend_group = parse.add_argument_group(title="commend")
-    commend_group.add_argument("-v", "--version", version=get_version(), action="version",
+    commend_group.add_argument("-v", version=get_version(), action="version",
                                help="prints the version number")
-    commend_group.add_argument("-e", dest="device_id", help="install app")
-    commend_group.add_argument("-d", "--debug", action="store_true", default=False, help="run with debug app")
-    commend_group.add_argument("-t", "--test", dest="test", action="store_true", default=False, help="test")
-    commend_group.add_argument("-r", "--reset", dest="reset", action="store_true", default=False,
+    commend_group.add_argument("-d", dest="debug", action="store_true", default=False, help="run with debug app")
+    commend_group.add_argument("-t", dest="test", action="store_true", default=False, help="test")
+    commend_group.add_argument("-r", dest="reset", action="store_true", default=False,
                                help="reset tool's local config")
+    commend_group.add_argument("-e", dest="device_id", help="specified device id")
+    commend_group.add_argument("-f", dest="flavors", type=str, help="specify product flavors")
+    commend_group.add_argument("-p", dest="project_path", type=str, help="specify project path")
 
-    build_group = parse.add_argument_group(title="build/install").add_mutually_exclusive_group()
-    build_group.add_argument("-b", "--build", dest="build_path", type=str, help="build app")
-    build_group.add_argument("-c", "--clean", dest="clean", action="store_true", default=False, help="run clean task")
-    build_group.add_argument("-s", "--select", dest="select_build_path", action="store_true", default=False,
-                             help="choose project path in cache")
-    build_group.add_argument("-n", "--no-build", dest="no_build", action="store_false", default=True,
-                             help="not build app ,just run with pre-build app")
-    build_group.add_argument("-i", "--install", dest="app_path", type=str, help="install app")
+    build_group = parse.add_argument_group(title="build & install").add_mutually_exclusive_group()
+    build_group.add_argument("-b", dest="build", action="store_true", default=False,
+                             help="build & install app")
+    build_group.add_argument("-c", dest="clean", action="store_true", default=False, help="clean build cache")
+    build_group.add_argument("-n", dest="no_build", action="store_true", default=False,
+                             help="install app , find app path in current dir")
+    build_group.add_argument("-i", dest="install_app_path", type=str, help="install app")
 
     monkey_group = parse.add_argument_group(title="monkey")
-    monkey_group.add_argument("-m", "--monkey", dest="monkey", action="store_true", help="run monkey")
-    monkey_group.add_argument("-o", "--monkey-options", dest="monkey_options", help="specified monkey options")
+    monkey_group.add_argument("-m", dest="monkey", action="store_true", help="run monkey with default options")
+    monkey_group.add_argument("-o", dest="monkey_options", help="specified monkey options")
 
     args = parse.parse_args()
 
 
 def init_project():
-    global project_path
-    global pkg_name
-    if args.build_path:
-        project_path = args.build_path
-    elif args.select_build_path:
-        project_path = choose_project_path()
-    elif not args.no_build:
-        project_path = choose_project_path()
-    elif args.clean:
-        project_path = os.getcwd()
+    if args.project_path:
+        project_path = args.project_path
     else:
         project_path = os.getcwd()
 
     if check_project_path(project_path):
-        add_to_path_cache(project_path)
-    elif args.app_path is not None:
-        pass
+        add_to_cache(get_project_section(-1), PJT_OPTION_PROJECT_PATH, project_path)
     else:
-        logger.error("Invalid path : %s" % project_path)
+        project_path = choose_project(PJT_OPTION_PROJECT_PATH, None)
+
+    if project_path is None:
         exit_with_msg(5)
-    pkg_name = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_PKG_NAME)
+
+    if args.flavors:
+        flavors = args.flavors
+    else:
+        flavors = choose_flavors(project_path, "")
+
+    return project_path, flavors
 
 
 def init_remote(device_id):
-    global apk_install_path
-    if config.has_option(CFG_SECTION_LOCAL, CFG_OPTION_APK_INSTALL_PATH):
-        paths = eval(config.get(CFG_SECTION_LOCAL, CFG_OPTION_APK_INSTALL_PATH))
-        if device_id not in paths.keys():
-            apk_install_path = find_install_path(device_id)
-            update_config(CFG_SECTION_LOCAL, CFG_OPTION_APK_INSTALL_PATH, device_id, apk_install_path)
-        else:
-            apk_install_path = paths[device_id]
+    section = get_device_section(device_id)
+    if config.has_section(section):
+        apk_install_path = config.get(section, DEV_OPTION_APK_INSTALL_PATH)
     else:
         apk_install_path = find_install_path(device_id)
-        update_config(CFG_SECTION_LOCAL, CFG_OPTION_APK_INSTALL_PATH, device_id, apk_install_path)
+        add_to_cache(section, DEV_OPTION_APK_INSTALL_PATH, apk_install_path)
+    return apk_install_path
 
 
-def choose_project_path():
-    if not config.has_option(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH):
-        logging.error("there is no cache yet")
-        return None
-    project_path_dict = eval(config.get(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH))
-    print_project_path_cache(project_path_dict)
-    project_path_index = int(raw_input("pls input project index:"))
-    if project_path_index is None or len(project_path_dict) == 0:
-        sys.exit("there is no cache yet,pls use [-b path]")
-    elif 0 > project_path_index or project_path_index >= len(project_path_dict):
+def choose_sections():
+    list_data = []
+    for section in config.sections():
+        if CFG_SECTION_GLOBAL != section:
+            list_data.append(section)
+    return choose(list_data, None)
+
+
+def choose(list_data, default):
+    if list_data is None or len(list_data) == 0:
+        logger.debug("there is no cache yet")
+        return default
+    print_choose_cache(list_data)
+    choose_index = int(raw_input("pls input index:"))
+    if 0 > choose_index or choose_index >= len(list_data):
         sys.exit("input a invalid index")
     else:
-        return project_path_dict[project_path_index]
+        return list_data[choose_index]
 
 
-def add_to_path_cache(path):
-    if path is not None or not config.has_option(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH):
-        if config.has_option(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH):
-            cache = eval(config.get(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH))
-        else:
-            cache = []
-        if path not in cache:
-            cache.append(path)
-        else:
-            return
-    else:
-        logger.warn("add a none path to cache")
+def choose_project(option, default):
+    prefix = CFG_SECTION_PROJECT_PREFIX
+    project_list = []
+    for section in config.sections():
+        if prefix in section:
+            data = config.get(section, option)
+            project_list.append(data)
+    return choose(project_list, default)
+
+
+def choose_flavors(project_path, default):
+    prefix = CFG_SECTION_PROJECT_PREFIX
+    list_data = []
+    for section in config.sections():
+        if prefix in section:
+            data = config.get(section, PJT_OPTION_PROJECT_PATH)
+            if data == project_path and config.has_option(section, PJT_OPTION_PRODUCT_FLAVORS):
+                list_data = str(config.get(section, PJT_OPTION_PRODUCT_FLAVORS)).split(CONFIG_SEP)
+    return choose(list_data, default)
+
+
+def add_to_cache(section, option, value, cover=True):
+    if value is None or section is None:
+        logger.error("add to cache error, why [%s-%s : %s]" % (section, option, value))
         return
-    config.set(CFG_SECTION_LOCAL, CFG_OPTION_PROJECT_PATH, str(cache))
+    if config.has_section(section):
+        cache = ""
+        if config.has_option(section, option) and not cover:
+            cache = config.get(section, option)
+        if value not in cache.split(CONFIG_SEP):
+            config.set(section, option, "%s,%s" % (cache, value) if cache else value)
+    else:
+        config.add_section(section)
+        config.set(section, option, value)
     save_config()
 
 
@@ -188,26 +213,10 @@ def check_project_path(path):
         return False
     else:
         # rough check
-        return "build.gradle" in os.listdir(path)
+        return "settings.gradle" in os.listdir(path)
 
 
-def update_config(section, option, key, value):
-    if value is not None or not config.has_option(section, option):
-        if config.has_option(section, option):
-            cache = eval(config.get(section, option))
-        else:
-            cache = dict()
-        if key in cache.keys() and cache.get(key) != value:
-            logger.warn("device %s has change apk install path")
-        cache[key] = value
-    else:
-        logger.warn("add a none path to cache")
-        return
-    config.set(section, option, str(cache))
-    save_config()
-
-
-def reset_config(section):
+def remove_config(section):
     if config.remove_section(section):
         logger.info("reset %s config successful!" % section)
         save_config()
@@ -215,8 +224,42 @@ def reset_config(section):
         logger.info("reset %s config fail!" % section)
 
 
-def reset_local_config():
-    reset_config(CFG_SECTION_LOCAL)
+def get_device_section(id):
+    prefix = CFG_SECTION_DEVICES_PREFIX
+    if id is None:
+        logger.error("get device section with error %s" % id)
+        exit_with_msg(8)
+    else:
+        return "%s%s" % (prefix, id)
+
+
+def get_project_section(value):
+    prefix = CFG_SECTION_PROJECT_PREFIX
+    if isinstance(value, int):
+        index = int(value)
+        if index >= 0:
+            project_section_count = index
+        else:
+            sections = config.sections()
+            project_section_count = 0
+            for section in sections:
+                if prefix in section:
+                    project_section_count += 1
+        return "%s%s" % (prefix, project_section_count)
+    elif isinstance(value, str):
+        project_path = str(value)
+        for section in config.sections():
+            if prefix in section:
+                if project_path == config.get(section, PJT_OPTION_PROJECT_PATH):
+                    return section
+    else:
+        logger.error("get project section with error %s" % value)
+        exit_with_msg(8)
+
+
+def reset_config():
+    section = choose_sections()
+    remove_config(section)
 
 
 def get_device_id():
@@ -239,18 +282,12 @@ def get_device_id():
         return devices
 
 
-def get_key(section, option):
-    if section == CFG_SECTION_LOCAL:
-        if option == CFG_OPTION_PROJECT_PATH:
-            return
-
-
 def save_config():
     with open(cfg_path, 'wb') as configfile:
         config.write(configfile)
 
 
-def print_project_path_cache(cache):
+def print_choose_cache(cache):
     for i in xrange(len(cache)):
         print ("%s : %s\n" % (i, cache[i]))
 
@@ -273,76 +310,90 @@ def remount_devices(device_id):
         exit_with_msg(2)
 
 
-def clean():
+def clean(project_path):
     logger.info("clean project build")
     start_time = time.time()
-    if not go2project_dir():
+    if not go2project_dir(project_path):
         exit_with_msg(5)
-    if 0 != os.system("%s clean" % find_gradle_path()):
+    if 0 != os.system("%s clean" % find_gradle_path(project_path)):
         exit_with_msg(3)
     duration = time.time() - start_time
     logger.info("end! duration : %s" % duration)
 
 
-def build_apk():
+def build_apk(project_path, flavors, is_debug):
     logger.info("start build")
     start_time = time.time()
-    if not go2project_dir():
+    if not go2project_dir(project_path):
         exit_with_msg(5)
-    if 0 != os.system("%s build" % find_gradle_path()):
+
+    build_cmd = "%s %s" % (find_gradle_path(project_path), gradle_build_task_name(flavors, is_debug))
+    logger.info("run build task : %s " % build_cmd)
+    if 0 != os.system(build_cmd):
         exit_with_msg(3)
+
+    # save product flavors
+    if flavors:
+        add_to_cache(get_project_section(project_path), PJT_OPTION_PRODUCT_FLAVORS, flavors, False)
+
     duration = time.time() - start_time
     logger.info("end! duration : %s" % duration)
 
+    apk_path = find_apk_path(project_path, flavors, is_debug)
+    logger.info("build apk's path : %s " % apk_path)
+    return apk_path
 
-def find_apk_path(cur_project_path, is_debug):
-    outs_path = os.path.join(cur_project_path, config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APK_BUILD_PATH))
-    apk_name = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME)
-    apks = []
-    for root, dirs, files in os.walk(outs_path):
+
+def install(app_path):
+    if app_path is None:
+        exit_with_msg(7)
+    logger.info("install apk : " + app_path)
+    for device_id in get_device_id():
+        root_devices(device_id)
+        remount_devices(device_id)
+
+        install_path = init_remote(device_id)
+        install_apk(device_id, app_path, install_path)
+        restart_app(device_id)
+
+
+def find_apk_path(cur_project_path, flavors, is_debug):
+    outs_path = os.path.join(cur_project_path, config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APK_BUILD_PATH))
+    apk_name = config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APP_NAME)
+    apk_path = []
+
+    def find_apk(arg, dirname, files):
         for fn in files:
-            if apk_name in fn and fn.endswith(".apk"):
-                apks.append(os.path.join(root, fn))
+            file_path = os.path.join(dirname, fn)
+            if (not flavors or flavors in file_path) \
+                    and (not is_debug or "debug" in fn) \
+                    and apk_name in fn \
+                    and fn.endswith(".apk") \
+                    and os.path.isfile(file_path):
+                apk_path.append(file_path)
 
-    if len(apks) > 2:
-        logger.warn("find to many apks : %s" % str(apks))
-
-    debug_file = None
-    release_file = None
-    for name in apks:
-        if "-debug" in name:
-            debug_file = name
-        else:
-            release_file = name
-
-    return release_file if not is_debug else debug_file
+    os.path.walk(outs_path, find_apk, ())
+    if len(apk_path) == 0:
+        return None
+    else:
+        return apk_path[0]
 
 
 def find_install_path(device_id):
     cmd = "adb -s %s shell ls /system/priv-app/" % device_id
     result = os.popen(cmd).read()
     for l in result.splitlines():
-        if config.get(CFG_SECTION_GLOBAL, CFG_OPTION_APP_NAME) in l:
+        if config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APP_NAME) in l:
             return os.path.join("/system/priv-app/", l, l + ".apk")
 
 
-def install():
-    for device_id in get_device_id():
-        init_remote(device_id)
-        root_devices(device_id)
-        remount_devices(device_id)
-        install_apk(device_id, args.app_path, args.debug)
-        restart_app(device_id)
-
-
-def install_apk(device_id, apk_path, is_debug):
-    logger.info("install debug %s" % is_debug)
+def install_apk(device_id, apk_path, install_path):
     if apk_path is None:
-        install_apk_path = find_apk_path(project_path, is_debug)
-    else:
-        install_apk_path = apk_path
+        exit_with_msg(8)
 
-    cmd = 'adb -s %s push %s %s' % (device_id, install_apk_path, apk_install_path)
+    install_apk_path = apk_path
+
+    cmd = 'adb -s %s push %s %s' % (device_id, install_apk_path, install_path)
     if 0 != os.system(cmd):
         exit_with_msg(4)
 
@@ -355,22 +406,14 @@ def restart_app(device_id):
     if 0 != os.system(
             'adb -s %s shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n '
             '%s/%s.activity.CameraActivity' % (device_id, apk_name, apk_name)):
-        exit_with_msg(7)
+        exit_with_msg(6)
 
 
-def find_gradle_path():
+def find_gradle_path(project_path):
     try:
-        build_file = open(os.path.join(project_path, 'gradle/wrapper/gradle-wrapper.properties'), 'r')
-
-        gradle_version = 'gradle-3.3-all'
-        for line in build_file.readlines():
-            if '//services.gradle.org/distributions/' in line:
-                gradle_version = line.split('/')[-1][:-5]
-        logger.info('gradle version : ' + gradle_version)
-        gradle_full_path = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_GRADLE_PATH) + str(gradle_version)
-        files = os.listdir(gradle_full_path)
-        if os.path.isdir(os.path.join(gradle_full_path, files[0])):
-            return os.path.join(gradle_full_path, files[0], gradle_version[:-4], 'bin/gradle')
+        gradlew_path = os.path.join(project_path, 'gradlew')
+        if os.path.exists(gradlew_path):
+            return gradlew_path
         else:
             exit_with_msg(5)
     except IOError, e:
@@ -378,8 +421,23 @@ def find_gradle_path():
         exit_with_msg(5)
 
 
+def gradle_build_task_name(flavors, is_debug):
+    prefix = "assemble"
+    suffix = "Release" if not is_debug else "Debug"
+    task_name = prefix + title_str(flavors) + suffix
+    logger.error("task_name " + task_name)
+    return task_name
+
+
+def title_str(s):
+    if s is not None and len(s) > 0:
+        return s[0].upper() + s[1:]
+    else:
+        return ""
+
+
 def build_monkey_log(device_id):
-    log_root = config.get(CFG_SECTION_GLOBAL, CFG_OPTION_MONKEY_LOG_PATH)
+    log_root = config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_MONKEY_LOG_PATH)
     date_str = time.strftime("%y%m%d")
     time_str = time.strftime("%H%M%S")
     log_path = os.path.join(log_root, date_str)
@@ -390,12 +448,12 @@ def build_monkey_log(device_id):
     return main_log, monkey_log
 
 
-def monkey():
+def monkey(pkg_name):
     proc_info = dict()
     for device_id in get_device_id():
         per_run_monkey(device_id)
         logcat_log, monkey_log = build_monkey_log(device_id)
-        proc_info[device_id] = [run_logcat(device_id, logcat_log), run_monkey(device_id, monkey_log)]
+        proc_info[device_id] = [run_logcat(device_id, logcat_log), run_monkey(device_id, pkg_name, monkey_log)]
     wait_monkey_stop(proc_info)
     exit_with_msg(0)
 
@@ -436,12 +494,12 @@ def stop_monkey(device_id):
     # stop monkey on specify device
     cmd = "adb -s %s shell ps | awk '/com\.android\.commands\.monkey/ { system(\"adb -s %s shell kill \" $2) }'" % (
         device_id, device_id)
-    logging.debug("stop monkey : %s " % cmd)
+    logger.debug("stop monkey : %s " % cmd)
     if 0 != os.system(cmd):
         exit_with_msg("stop monkey fail")
 
 
-def run_monkey(device_id, log):
+def run_monkey(device_id, pkg_name, log):
     count = 5000000
     option = "monkey --pct-touch 50 --pct-motion 15 --pct-anyevent 5 --pct-majornav 12 --pct-trackball 1 --pct-nav 0 " \
              "--pct-syskeys 15 --pct-appswitch 2 --throttle 200 -p %s -s 500 " \
@@ -482,7 +540,7 @@ def exit_with_msg(sign):
         exit(sign)
 
 
-def go2project_dir():
+def go2project_dir(project_path):
     logger.info("project path : %s" % project_path)
     if project_path is not None:
         os.chdir(project_path)
@@ -505,25 +563,35 @@ def main():
     Myos Camera debug tools.
     This program provide build & install Tinno ApeCamera features.
     """
+    # global init
     init_config()
     init_logger()
     init_args()
+
+    # options
     if args.test:
         test()
     elif args.reset:
-        reset_local_config()
+        reset_config()
     elif args.monkey or args.monkey_options:
-        monkey()
+        pkg_name = config.get(CFG_SECTION_GLOBAL, GLOBAL_OPTION_APP_PKG_NAME)
+        monkey(pkg_name)
+    elif args.clean:
+        project_path, flavors = init_project()
+        clean(project_path)
+    elif args.build:
+        project_path, flavors = init_project()
+        apk_path = build_apk(project_path, flavors, args.debug)
+        install(apk_path)
+    elif args.no_build:
+        project_path, flavors = init_project()
+        apk_path = find_apk_path(project_path, flavors, args.debug)
+        install(apk_path)
+    elif args.install_app_path:
+        apk_path = args.install_app_path
+        install(apk_path)
     else:
-        # project option
-        init_project()
-        if args.clean:
-            clean()
-        elif args.no_build and args.app_path is None:
-            build_apk()
-            install()
-        else:
-            install()
+        logger.warn("pls input a option! Use '-h' show help info")
 
 
 if __name__ == '__main__':
