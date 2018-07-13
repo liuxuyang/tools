@@ -248,10 +248,16 @@ def get_project_section(value):
         return "%s%s" % (prefix, project_section_count)
     elif isinstance(value, str):
         project_path = str(value)
+        project_section_count = 0
+        project_section = None
         for section in config.sections():
             if prefix in section:
+                project_section_count += 1
                 if project_path == config.get(section, PJT_OPTION_PROJECT_PATH):
-                    return section
+                    project_section = section
+        if not project_section:
+            project_section = "%s%s" % (prefix, project_section_count)
+        return project_section
     else:
         logger.error("get project section with error %s" % value)
         exit_with_msg(8)
@@ -425,7 +431,7 @@ def gradle_build_task_name(flavors, is_debug):
     prefix = "assemble"
     suffix = "Release" if not is_debug else "Debug"
     task_name = prefix + title_str(flavors) + suffix
-    logger.error("task_name " + task_name)
+    logger.info("task_name " + task_name)
     return task_name
 
 
