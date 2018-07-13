@@ -126,7 +126,7 @@ def init_project():
         project_path = os.getcwd()
 
     if check_project_path(project_path):
-        add_to_cache(get_project_section(-1), PJT_OPTION_PROJECT_PATH, project_path)
+        add_to_cache(get_project_section(project_path), PJT_OPTION_PROJECT_PATH, project_path)
     else:
         project_path = choose_project(PJT_OPTION_PROJECT_PATH, None)
 
